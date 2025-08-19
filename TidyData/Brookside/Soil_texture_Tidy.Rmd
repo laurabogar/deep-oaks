@@ -1,0 +1,51 @@
+---
+title: "Deep Oaks TidyData"
+output: html_document
+date: "2024-09-06"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#load and check tidyverse package version:
+```{r}
+library(tidyverse)
+packageVersion('tidyverse')
+```
+#update tidyverse (if not just installed):
+```{r}
+tidyverse_update()
+```
+#import data, saved as .csv files:
+```{r}
+texture_data <- read_csv("../../Data/Brookside/PHYSb_90403_090324.csv", skip = 7)
+```
+```{r}
+texture_data_tidy <- texture_data %>%
+  unite('Sample_id', 'Sample Location', `Sample Description #1`, `Sample Description #2`, sep="_")
+
+```
+#extract, rename soil pH:
+```{r}
+texture_data_tidy <- select(texture_data_tidy,
+                          'Sample_id',
+                          'Clay (%)',
+                          'Silt (%)',
+                          'Sand (%)')
+texture_data_tidy <- rename(texture_data_tidy, 
+                            clay_percent = 'Clay (%)', 
+                            silt_percent = 'Silt (%)',
+                            sand_percent = 'Sand (%)')
+```
+
+#remove empty rows
+```{r}
+texture_data_tidy <- filter(texture_data_tidy, texture_data_tidy$Sample_id != "NA_NA_NA")
+```
+
+#export cleaned soil pH:
+```{r}
+write_csv(texture_data_tidy, "Results/Soil_texture_Tidy_mip.csv")
+```
+

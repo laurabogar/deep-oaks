@@ -1,0 +1,300 @@
+---
+title: "Site_Data_Tidy"
+author: "Glade Bogar"
+date: "2024-09-11"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#Load required packages:
+```{r}
+library(tidyverse)
+```
+
+#load required data:
+```{r}
+site_data_1 <- read_csv("../../Data/Transcribed data/Sampling/230529 Deep Oaks Field Data Sheets_2.csv")
+site_data_2 <- read_csv("../../Data/Transcribed data/Sampling/230520 Deep Oaks Data Sheets_2.csv")
+```
+
+#These datasheets are so different it may be worth tidying them separately, before attempting to join.
+
+#Start with #1:
+
+#Annotate date names:
+```{r}
+site_data_1 <- rename(site_data_1, "Sample_Date_yr.mo.dy" = "Date")
+site_data_1$Sample_Date_yr.mo.dy <- as.character(site_data_1$Sample_Date_yr.mo.dy)
+```
+
+#Create/combine/rejoin sampler binary variables:
+```{r}
+samplers_1 <- select(site_data_1, Sample_Date_yr.mo.dy, "Sampler Initials")
+samplers_2 <- as_tibble(str_split(samplers_1$`Sampler Initials`, pattern ="[, ]", simplify = TRUE))
+
+samplers_3 <- samplers_2 %>%
+  rowwise() %>%
+  mutate(Sampler_LB = any(str_detect(c_across(everything()), "LB"))) %>%
+  ungroup()
+
+samplers_4 <- samplers_2 %>%
+  rowwise() %>%
+  mutate(Sampler_EW = any(str_detect(c_across(everything()), "EW"))) %>%
+  ungroup()
+
+samplers_5 <- samplers_2 %>%
+  rowwise() %>%
+  mutate(Sampler_BL = any(str_detect(c_across(everything()), "BL"))) %>%
+  ungroup()
+
+samplers_6 <- samplers_2 %>%
+  rowwise() %>%
+  mutate(Sampler_DL = any(str_detect(c_across(everything()), "DL"))) %>%
+  ungroup()
+
+samplers_1$Sampler_LB <- samplers_3$Sampler_LB
+samplers_1$Sampler_EW <- samplers_4$Sampler_EW
+samplers_1$Sampler_BL <- samplers_5$Sampler_BL
+samplers_1$Sampler_DL <- samplers_6$Sampler_DL
+
+samplers_1$Sampler_LB <- as.character(samplers_1$Sampler_LB)
+samplers_1$Sampler_EW <- as.character(samplers_1$Sampler_EW)
+samplers_1$Sampler_BL <- as.character(samplers_1$Sampler_BL)
+samplers_1$Sampler_DL <- as.character(samplers_1$Sampler_DL)
+
+samplers_1 <- select(samplers_1, -"Sampler Initials")
+
+site_data_1 <- left_join(site_data_1, samplers_1)
+```
+
+#Split "Burned, Dead" into two columns:
+```{r}
+#short and complex enough that it's faster to write it in
+site_data_1$Tree_Burn_Status <- c("unburned", "burned", "burned", "burned")
+site_data_1$Tree_Health <- c("living", "dead", "living", "dead")
+```
+
+#Split coordinates into lat/long, append:
+```{r}
+lat_long <- select(site_data_1, Sample_Date_yr.mo.dy, "Coordinates (lat/lon)")
+lat_long_1 <- as_tibble(str_split(lat_long$`Coordinates (lat/lon)`, "[, ]", simplify = TRUE))
+lat_long_1 <- mutate_all(lat_long_1, na_if, "")
+lat_long$latitude <- lat_long_1$V1
+lat_long$longitude <- coalesce(lat_long_1$V2, lat_long_1$V3)
+
+lat_long <- select(lat_long, -"Coordinates (lat/lon)")
+site_data_1 <- left_join(site_data_1, lat_long)
+```
+
+#Create column "trees present within 10m", manually:
+```{r}
+site_data_1$Trees_within_10m <- c("yes", "no", "no", "yes")
+```
+
+#Create column "Number of trees present within 10m" manually:
+```{r}
+site_data_1$Trees_within_10m_count <- c("1", "0", "0", "2")
+```
+
+#Unsure how to deal with this complex dataset. Trabscribing additional values for individual trees:
+```{r}
+site_data_1$Closest_Tree_Identity <- c("Manzanita", "", "", "Pine")
+site_data_1$Closest_Tree_Health <- c("living", "", "", "dead")
+site_data_1$Closest_Tree_Distance_m <- c("6.80", "", "", "2.43")
+site_data_1$Closest_Tree_Location_degrees <- c("0", "", "", "45")
+
+site_data_1$Second_Closest_Tree_Identity <- c("", "", "", "Oak")
+site_data_1$Second_Closest_Tree_Health <- c("", "", "", "dead")
+site_data_1$Second_Closest_Tree_Distance_m <- c("", "", "", "5.57")
+site_data_1$Second_Closest_Tree_Location_degrees <- c("0", "", "", "104")
+```
+
+#rename remaining needed variables:
+```{r}
+site_data_1 <- rename(site_data_1, "Avenza_Name" = "Saved in Avenza as...")
+site_data_1 <- rename(site_data_1, "Photo_Taken" = "Site photo taken with GPS enabled? (Correct=Y)")
+site_data_1 <- rename(site_data_1, "Site_Notes" = "Notes")
+```
+
+#select data:
+```{r}
+site_data_1_final <- select(site_data_1,
+                      Sample_Date_yr.mo.dy,
+                      Tree,
+                      Avenza_Name,
+                      Photo_Taken,
+                      Site_Notes,
+                      Sampler_LB,
+                      Sampler_EW,
+                      Sampler_BL,
+                      Sampler_DL,
+                      Tree_Burn_Status,
+                      Tree_Health,
+                      latitude,
+                      longitude,
+                      Trees_within_10m,
+                      Trees_within_10m_count,
+                      Closest_Tree_Identity,
+                      Closest_Tree_Health,
+                      Closest_Tree_Distance_m,
+                      Closest_Tree_Location_degrees,
+                      Second_Closest_Tree_Identity,
+                      Second_Closest_Tree_Health,
+                      Second_Closest_Tree_Distance_m,
+                      Second_Closest_Tree_Location_degrees
+                      )
+```
+
+#Ok, NOW tidy sheet #2 to bring in line with sheet #1 for append:
+
+#Will need significant interpretation.
+
+#First, row 5 contains information about the distance and location of T02 relative to T03. This isn't present for other dataset and can be calculated from GPS, so omitting.
+
+#Additionally, there's one entirely blank row.
+
+#Doing this the dumb way:
+```{r}
+site_data_2$manualedit <- c("y","n","y","y","n")
+site_data_2 <- filter(site_data_2, manualedit == "y")
+```
+
+#Three rows because the first proximate tree (Blue oak, 3.05m away, 344 degrees) was given its own row. Omitting for tidy purposes, and manually writing in in the 'tree' steps later.
+```{r}
+site_data_2 <- filter(site_data_2, Tree > 0)
+```
+
+#Add date manually, from notes:
+```{r}
+site_data_2$Sample_Date_yr.mo.dy <- c("230508","230520")
+```
+
+#Fix Tree ID system:
+```{r}
+site_data_2$Tree <- c("T02","T03")
+```
+
+#Fix Sampler IDs:
+```{r}
+site_data_2$Sampler_LB <- c("TRUE","TRUE")
+site_data_2$Sampler_GB <- c("TRUE","FALSE")
+site_data_2$Sampler_RM <- c("FALSE","TRUE")
+site_data_2$Sampler_DG <- c("FALSE","TRUE")
+```
+
+#Fix lat/long:
+```{r}
+#Retrieved GPS from Laura for T02 - 38.48673, -122.15038
+#Adding manually (along with already present value) before splitting
+
+site_data_2$'Coordinates (lat/lon)' <- c("38.48673, -122.15038","38.486593, -122.150304")
+
+lat_long <- select(site_data_2, Sample_Date_yr.mo.dy, "Coordinates (lat/lon)")
+lat_long_1 <- as_tibble(str_split(lat_long$`Coordinates (lat/lon)`, "[, ]", simplify = TRUE))
+lat_long_1 <- select(lat_long_1, -V2)
+lat_long$latitude <- lat_long_1$V1
+lat_long$longitude <- lat_long_1$V3
+lat_long <- select(lat_long, -"Coordinates (lat/lon)")
+site_data_2 <- left_join(site_data_2, lat_long)
+```
+
+#Split "Burned, Dead" into two columns:
+```{r}
+#short enough that it's faster to write it in
+site_data_2$Tree_Burn_Status <- c("burned", "unburned")
+site_data_2$Tree_Health <- c("dead", "living")
+```
+
+#Create column "trees present within 10m", manually:
+```{r}
+site_data_2$Trees_within_10m <- c("yes", "yes")
+```
+
+#Create column "Number of trees present within 10m" manually:
+```{r}
+site_data_2$Trees_within_10m_count <- c("","2")
+```
+
+#Transcribing additional values for individual trees:
+```{r}
+site_data_2$Closest_Tree_Identity <- c("Oak", "Blue_Oak")
+site_data_2$Closest_Tree_Health <- c("dead", "living")
+site_data_2$Closest_Tree_Distance_m <- c("", "3.05")
+site_data_2$Closest_Tree_Location_degrees <- c("", "344")
+
+site_data_2$Second_Closest_Tree_Identity <- c("Oak", "Blue_Oak")
+site_data_2$Second_Closest_Tree_Health <- c("dead", "living")
+site_data_2$Second_Closest_Tree_Distance_m <- c("", "6.68")
+site_data_2$Second_Closest_Tree_Location_degrees <- c("", "290")
+```
+
+#rename remaining needed variables:
+```{r}
+site_data_2 <- rename(site_data_2, "Avenza_Name" = "Saved in Avenza as...")
+site_data_2 <- rename(site_data_2, "Photo_Taken" = "Site photo taken with GPS enabled? (Correct=Y)")
+site_data_2 <- rename(site_data_2, "Site_Notes" = "Notes")
+```
+
+#select data:
+```{r}
+site_data_2_final <- select(site_data_2,
+                      Sample_Date_yr.mo.dy,
+                      Tree,
+                      Avenza_Name,
+                      Photo_Taken,
+                      Site_Notes,
+                      Sampler_LB,
+                      Sampler_GB,
+                      Sampler_RM,
+                      Sampler_DG,
+                      Tree_Burn_Status,
+                      Tree_Health,
+                      latitude,
+                      longitude,
+                      Trees_within_10m,
+                      Trees_within_10m_count,
+                      Closest_Tree_Identity,
+                      Closest_Tree_Health,
+                      Closest_Tree_Distance_m,
+                      Closest_Tree_Location_degrees,
+                      Second_Closest_Tree_Identity,
+                      Second_Closest_Tree_Health,
+                      Second_Closest_Tree_Distance_m,
+                      Second_Closest_Tree_Location_degrees
+                      )
+```
+
+#Leave out 'vegetation description", "tree circumference" - first is addressed by looking at photos, second was measured at only one site.
+
+#Append:
+```{r}
+site_data <- bind_rows(site_data_2_final,site_data_1_final)
+```
+
+#Clean errors:
+```{r}
+site_data$Sampler_GB <- replace_na(site_data$Sampler_GB, "FALSE")
+site_data$Sampler_RM <- replace_na(site_data$Sampler_RM, "FALSE")
+site_data$Sampler_DG <- replace_na(site_data$Sampler_DG, "FALSE")
+site_data$Sampler_EW <- replace_na(site_data$Sampler_EW, "FALSE")
+site_data$Sampler_BL <- replace_na(site_data$Sampler_BL, "FALSE")
+site_data$Sampler_DL <- replace_na(site_data$Sampler_DL, "FALSE")
+```
+
+#export:
+```{r}
+write_csv(site_data, "Results/site_data_tidy_mip.csv")
+```
+
+
+
+
+
+
+
+
+
+

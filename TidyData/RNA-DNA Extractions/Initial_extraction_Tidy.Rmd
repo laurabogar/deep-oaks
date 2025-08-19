@@ -1,0 +1,88 @@
+---
+title: "Untitled"
+output: html_document
+date: "2024-09-13"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#load and check tidyverse package version:
+```{r}
+library(tidyverse)
+packageVersion('tidyverse')
+```
+#update tidyverse (if not just installed):
+```{r}
+tidyverse_update()
+```
+#Load csv
+```{r}
+Initial_Extraction <- read_csv("../../Data/Transcribed data/RNA-DNA Extractions and Lib prep planning/Deep Oak RNA_DNA Yields - Initial Extractions.csv")
+
+```
+
+
+#add column that just says DO then unite with the sample ids
+```{r}
+Initial_Extraction_Tidy <- Initial_Extraction %>%
+  mutate(new_column = "DO")
+
+Initial_Extraction_Tidy <- Initial_Extraction_Tidy %>%
+  unite('Sample_id', 'new_column', 'Tree', 'Depth cm', sep="_")
+
+
+```
+#rename columns to be more data friendly
+```{r}
+Initial_Extraction_Tidy <- Initial_Extraction_Tidy %>%
+  rename(extraction_date = `Extraction Date`)
+Initial_Extraction_Tidy <- Initial_Extraction_Tidy %>%
+  rename(date_collected = `Date Collected`)
+Initial_Extraction_Tidy <- Initial_Extraction_Tidy %>%
+  rename(starting_depth_cm = `Starting depth (cm)`)
+Initial_Extraction_Tidy <- Initial_Extraction_Tidy %>%
+  rename(RNA_ng_per_uL = `RNA ng/uL`)
+Initial_Extraction_Tidy <- Initial_Extraction_Tidy %>%
+  rename(DNA_ng_per_uL = `DNA ng/uL`)
+Initial_Extraction_Tidy <- Initial_Extraction_Tidy %>%
+  rename(S1_RNA = `S1 RNA`)
+Initial_Extraction_Tidy <- Initial_Extraction_Tidy %>%
+  rename(S2_RNA = `S2 RNA`)
+Initial_Extraction_Tidy <- Initial_Extraction_Tidy %>%
+  rename(S1_DNA = `S1 DNA`)
+Initial_Extraction_Tidy <- Initial_Extraction_Tidy %>%
+  rename(S2_DNA = `S2 DNA`)
+Initial_Extraction_Tidy <- Initial_Extraction_Tidy %>%
+  rename(S1_DNA_round2 = `S1 DNA 2nd round`)
+Initial_Extraction_Tidy <- Initial_Extraction_Tidy %>%
+  rename(S2_DNA_round2 = `S2 DNA 2nd round`)
+Initial_Extraction_Tidy <- Initial_Extraction_Tidy %>%
+  rename(twenty_uL_RNA_dilution_2_ng_per_uL = `20uL RNA DILUTION 2ng/uL`)
+Initial_Extraction_Tidy <- Initial_Extraction_Tidy %>%
+  rename(twenty_uL_DNA_dilution_2_ng_per_uL = `20uL DNA Dilution 2ng/uL`)
+Initial_Extraction_Tidy <- Initial_Extraction_Tidy %>%
+  rename(soil_mass_g_extraction = `Soil Mass (g)`)
+```
+#change doubles to characters and characters to doubles
+```{r}
+Initial_Extraction_Tidy$date_collected <- as.character(Initial_Extraction_Tidy$date_collected)
+Initial_Extraction_Tidy$starting_depth_cm <- as.character(Initial_Extraction_Tidy$starting_depth_cm)
+Initial_Extraction_Tidy$twenty_uL_RNA_dilution_2_ng_per_uL <- as.numeric(Initial_Extraction_Tidy$twenty_uL_RNA_dilution_2_ng_per_uL)
+Initial_Extraction_Tidy$twenty_uL_DNA_dilution_2_ng_per_uL <- as.numeric(Initial_Extraction_Tidy$twenty_uL_DNA_dilution_2_ng_per_uL)
+```
+#Omit repeat Sample_IDs. Keep the versions with the most complete data sets
+```{r}
+Initial_Extraction_Tidy <- Initial_Extraction_Tidy %>%
+  filter(!is.na(soil_mass_g_extraction))
+```
+
+#replace NAs with 0
+```{r}
+Initial_extraction_Tidy_0 <- mutate_all(Initial_Extraction_Tidy, ~ifelse(is.na(.), 0, .))
+```
+#export cleaned data:
+```{r}
+write_csv(Initial_extraction_Tidy_0, "Results/Initial_extraction_Tidy_mip.csv")
+```

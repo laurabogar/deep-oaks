@@ -1,0 +1,53 @@
+---
+title: "Soil_CN_Tidy"
+output: html_document
+date: "2024-09-11"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#load and check tidyverse package version:
+```{r}
+library(tidyverse)
+packageVersion('tidyverse')
+```
+#update tidyverse (if not just installed):
+```{r}
+tidyverse_update()
+```
+#import data, saved as .csv files:
+```{r}
+Soil_CN <- read_csv("../../Data/Brookside/SOILGEN_90403_083024.csv", skip = 7)
+```
+#extract, rename file:
+
+```{r}
+Soil_CN_tidy <- Soil_CN
+
+
+```
+
+```{r}
+Soil_CN_tidy_merged <- Soil_CN_tidy %>%
+  unite('Sample_id', 'Sample Location', `Sample Description #1`, `Sample Description #2`, sep="_")
+
+```
+
+#rename example%, to an example_percent format
+```{r}
+Soil_CN_tidy_merged <- rename(Soil_CN_tidy_merged, "carbon_percent" = "Carbon   (%)")
+Soil_CN_tidy_merged <- rename(Soil_CN_tidy_merged, "nitrogen_percent" = "Nitrogen (%)")
+Soil_CN_tidy_merged <- rename(Soil_CN_tidy_merged, "C_per_N_Ratio" = "C/N Ratio")
+```
+#remove Lab Number
+```{r}
+Soil_CN_tidy_merged <- select(Soil_CN_tidy_merged, -"Lab Number")
+```
+
+
+#export cleaned data:
+```{r}
+write_csv(Soil_CN_tidy_merged, "Results/Soil_CN_Tidy_mip.csv")
+```

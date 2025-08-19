@@ -1,0 +1,119 @@
+---
+title: "Figure 4"
+author: "Anna Goodman"
+date: "2025-06-17"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+#load required packages:
+```{r}
+library("phyloseq")
+library("tidyverse")
+```
+
+#load required data:
+```{r}
+sigtab = read_csv("../../Analysis/Microbial Communities/Fungal-Bacterial Interactions/DeSeq2 Indicator Species Analysis/Results/DESeq2_16S_ASVs_RNA_ECM_positive_3trees_mip.csv")
+```
+
+###Visualize
+```{r}
+
+theme_set(theme_bw())
+
+# Phylum order
+x = tapply(sigtab$log2FoldChange, sigtab$Phylum, function(x) max(x))
+x = sort(x, TRUE)
+sigtab$Phylum = factor(as.character(sigtab$Phylum), levels=names(x))
+# Genus order
+x = tapply(sigtab$log2FoldChange, sigtab$Genus, function(x) max(x))
+x = sort(x, TRUE)
+sigtab$Genus = factor(as.character(sigtab$Genus), levels=names(x))
+
+
+fig4 <- ggplot(sigtab,
+       aes(x = Genus,
+           y = log2FoldChange,
+           color = Phylum,
+           size = baseMean)) +
+  geom_point() +
+  scale_size_continuous(
+    name = "Average per-sample read abudance",
+    breaks = c(10, 150, 300),
+    labels = c("10", "150", "300"),
+    range = c(1, 10)
+    ) +
+  theme(text = element_text(size = 7), axis.text.x = element_text(angle = -90, hjust = 0, vjust=0.5)) +
+  scale_x_discrete(labels = function(x) gsub("g__", "", x)) +
+  scale_color_discrete(labels = function(x) gsub("p__", "", x))
+
+fig4
+```
+
+### export:
+```{r}
+# create the jpg figure file in this results folder and in the reports folder
+
+# requirements: 1000 pp1 (pixels per inch), 140 mm wide
+# 1 inch = 0.0393701 mm, 1 mm = 25.4 inches
+
+ppi = 1000
+
+w_mm = 190
+hw_ratio = 5/11 # arbitrary
+
+h_mm = w_mm*hw_ratio
+w_i = w_mm/25.4
+h_i = h_mm/25.4
+
+jpeg("Results/Figure4.jpg", width = w_i * ppi, height = h_i * ppi, res = ppi)
+fig4
+dev.off()
+
+jpeg("../../Reports/Figure4.jpg", width = w_i * ppi, height = h_i * ppi, res = ppi)
+fig4
+dev.off()
+```
+
+```{r}
+# create the png figure file in this results folder and in the reports folder
+
+# requirements: 1000 pp1 (pixels per inch), 140 mm wide
+# 1 inch = 0.0393701 mm, 1 mm = 25.4 inches
+
+ppi = 1000
+
+w_mm = 190
+hw_ratio = 5/11 # arbitrary
+
+h_mm = w_mm*hw_ratio
+w_i = w_mm/25.4
+h_i = h_mm/25.4
+
+png("Results/Figure4.png", width = w_i * ppi, height = h_i * ppi, res = ppi)
+fig4
+dev.off()
+
+png("../../Reports/Figure4.png", width = w_i * ppi, height = h_i * ppi, res = ppi)
+fig4
+dev.off()
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+

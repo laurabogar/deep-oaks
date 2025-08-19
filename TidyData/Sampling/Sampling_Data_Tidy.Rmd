@@ -1,0 +1,349 @@
+---
+title: "Sampling_Data_Tidy"
+author: "Glade Bogar"
+date: "2024-09-12"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#Load required packages:
+```{r}
+library(tidyverse)
+```
+
+#Load required data:
+```{r}
+T02 <- read_csv("../../Data/Transcribed data/Sampling/230508 T02 Deep Oaks Tree Level.csv")
+T03 <- read_csv("../../Data/Transcribed data/Sampling/230520 Deep Oaks Data Sheets_1.csv")
+T04 <- read_csv("../../Data/Transcribed data/Sampling/230522 Deep Oaks Data Sheets_1.csv")
+T05 <- read_csv("../../Data/Transcribed data/Sampling/230526 Deep Oaks Field Data Sheets_1.csv")
+T06 <- read_csv("../../Data/Transcribed data/Sampling/230528 Deep Oajs Field Data Sheets_1.csv")
+T07 <- read_csv("../../Data/Transcribed data/Sampling/230529 Deep Oaks Field Data Sheets_1.csv")
+```
+
+#These are pretty similar but not similar enough to append and then tidy from there - different variable names, different numbers of columns. Tidy minimally (one at a time) to get to a cleaner append, and then do the remainder.
+
+#Work in reverse order
+
+#T07:
+
+#Rename needed columns:
+```{r}
+T07 <- rename(T07, Dead_Burned = "Burned (Dead?)")
+T07 <- rename(T07, Depth_cm = "Depth (cm)")
+T07 <- rename(T07, Wet_mass_of_core_g = "Wet mass of core (cm) <--- Including bag")
+T07 <- rename(T07, Soil_for_nucleic_acid_g = "Soil mass (extraction tube) (ideal= 2.0g)")
+T07 <- rename(T07, Soil_for_pH_g = "Soil mass in pH tube (g)~5g +- 1")
+T07 <- rename(T07, Soil_for_archive_g = "Sol mass saved in whirl-top bag (g) ~40-50g")
+T07 <- rename(T07, Sample_Notes = "Notes")
+
+T07 <- select(T07,
+              Tree,
+              Dead_Burned,
+              Depth_cm,
+              Wet_mass_of_core_g,
+              Soil_for_nucleic_acid_g,
+              Soil_for_pH_g,
+              Soil_for_archive_g,
+              Sample_Notes
+              )
+```
+
+#T06:
+
+#Rename needed columns:
+```{r}
+T06 <- rename(T06, Dead_Burned = "Burned (Dead?)")
+T06 <- rename(T06, Depth_cm = "Depth (cm)")
+T06 <- rename(T06, Wet_mass_of_core_g = "Wet mass of core (cm) <--- Including bag")
+T06 <- rename(T06, Soil_for_nucleic_acid_g = "Soil mass (extraction tube) (ideal= 2.0g)")
+T06 <- rename(T06, Soil_for_pH_g = "Soil mass in pH tube (g)~5g +- 1")
+T06 <- rename(T06, Soil_for_archive_g = "Sol mass saved in whirl-top bag (g) ~40-50g")
+T06 <- rename(T06, Sample_Notes = "Notes")
+```
+
+#Fix Tree variable:
+```{r}
+T06$Tree <- "T06"
+```
+
+#select:
+```{r}
+T06 <- select(T06,
+              Tree,
+              Dead_Burned,
+              Depth_cm,
+              Wet_mass_of_core_g,
+              Soil_for_nucleic_acid_g,
+              Soil_for_pH_g,
+              Soil_for_archive_g,
+              Sample_Notes
+              )
+```
+
+#T05:
+
+#Rename needed columns:
+```{r}
+T05 <- rename(T05, Dead_Burned = "Burned (Dead?)")
+T05 <- rename(T05, Depth_cm = "Depth (cm)")
+T05 <- rename(T05, Wet_mass_of_core_g = "Wet mass of core (cm) <--- Including bag")
+T05 <- rename(T05, Soil_for_nucleic_acid_g = "Soil mass (extraction tube) (ideal= 2.0g)")
+T05 <- rename(T05, Soil_for_pH_g = "Soil mass in pH tube (g)~5g +- 1")
+T05 <- rename(T05, Soil_for_archive_g = "Sol mass saved in whirl-top bag (g) ~40-50g")
+T05 <- rename(T05, Sample_Notes = "Notes")
+```
+
+#Fix Tree variable:
+```{r}
+T05$Tree <- "T05"
+```
+
+#select:
+```{r}
+T05 <- select(T05,
+              Tree,
+              Dead_Burned,
+              Depth_cm,
+              Wet_mass_of_core_g,
+              Soil_for_nucleic_acid_g,
+              Soil_for_pH_g,
+              Soil_for_archive_g,
+              Sample_Notes
+              )
+```
+
+
+#T04:
+
+#Rename needed columns:
+```{r}
+T04 <- rename(T04, Dead_Burned = "Burned (Dead?)")
+T04 <- rename(T04, Depth_cm = "Depth")
+T04 <- rename(T04, Wet_mass_of_core_g = "Wet mass of core (cm) <--- Including bag")
+T04 <- rename(T04, Soil_for_nucleic_acid_g = "Soil mass (extraction tube) (ideal= 2.0g)")
+T04 <- rename(T04, Soil_for_pH_g = "Soil mass in pH tube (g)~5g +- 1")
+T04 <- rename(T04, Soil_for_archive_g = "Sol mass saved in whirl-top bag (g) ~40-50g")
+T04 <- rename(T04, Sample_Notes = "Notes")
+
+T04 <- select(T04,
+              Tree,
+              Dead_Burned,
+              Depth_cm,
+              Wet_mass_of_core_g,
+              Soil_for_nucleic_acid_g,
+              Soil_for_pH_g,
+              Soil_for_archive_g,
+              Sample_Notes
+              )
+```
+
+#T03:
+
+#Rename needed columns:
+```{r}
+T03 <- rename(T03, Dead_Burned = "Burned (Dead?)")
+T03 <- rename(T03, Depth_cm = "Depth")
+T03 <- rename(T03, Wet_mass_of_core_g = "Wet mass of core (cm) <--- Including bag")
+T03 <- rename(T03, Soil_for_nucleic_acid_g = "Soil mass (extraction tube) (ideal= 2.0g)")
+T03 <- rename(T03, Soil_for_pH_g = "Soil mass in pH tube (g)~5g +- 1")
+T03 <- rename(T03, Soil_for_archive_g = "Sol mass saved in whirl-top bag (g) ~40-50g")
+T03 <- rename(T03, Sample_Notes = "Notes")
+```
+
+#only file with characters in the wet mass of core column, fix:
+```{r}
+T03$Wet_mass_of_core_g <- c(
+  "641.9",
+  "747.7",
+  "644.7",
+  "774.7",
+  "860.3",
+  "852.9"
+)
+
+T03$Wet_mass_of_core_g <- as.numeric(T03$Wet_mass_of_core_g)
+```
+
+#Fix Tree variable:
+```{r}
+T03$Tree <- "T03"
+```
+
+#select:
+```{r}
+T03 <- select(T03,
+              Tree,
+              Dead_Burned,
+              Depth_cm,
+              Wet_mass_of_core_g,
+              Soil_for_nucleic_acid_g,
+              Soil_for_pH_g,
+              Soil_for_archive_g,
+              Sample_Notes
+              )
+```
+
+#T02:
+
+#reload and skip preliminary rows. Only omitting information stored elsewhere - sample date, samplers, the fact that the large whirlpak bags weigh 15g and the small ones weigh 5.0g
+```{r}
+T02 <- read_csv("../../Data/Transcribed data/Sampling/230508 T02 Deep Oaks Tree Level.csv", skip = 2)
+```
+
+#Rename needed columns:
+```{r}
+T02 <- rename(T02, Dead_Burned = "Burned?")
+T02 <- rename(T02, Depth_cm = "Depth cm")
+T02 <- rename(T02, Wet_mass_of_core_g = "Wet mass of core (g)")
+T02 <- rename(T02, Soil_for_nucleic_acid_g = "Soil mass (extraction tube) (ideal= 2.0g) (g)")
+T02 <- rename(T02, Soil_for_pH_g = "Soil mass in pH tube (g) 4.5-5.5")
+T02 <- rename(T02, Soil_for_archive_g = "Soil mass saved in whirl-top bag (g) ~40-50g")
+T02 <- rename(T02, Sample_Notes = "Notes")
+```
+
+#This is the only sampling for which bag tare was inconsistent, will be easier to bring these data into the standard with the others and correct from there, than to correct individual samples later in analysis:
+```{r}
+T02 <- rename(T02, tare_note = "Wet mass of core (g) Notes")
+T02_untared <- filter(T02, tare_note == "minus mass of large whirlpak bag (15g)")
+T02_tared <- dplyr::setdiff(T02, T02_untared)
+
+T02_untared <- mutate(T02_untared, Soil_for_archive_g_corrected = Soil_for_archive_g - 5)
+T02_untared <- select(T02_untared, -Soil_for_archive_g)
+T02_untared <- rename(T02_untared, Soil_for_archive_g = Soil_for_archive_g_corrected)
+
+T02_tared <- mutate(T02_tared, Wet_mass_of_core_g_corrected = Wet_mass_of_core_g + 15)
+T02_tared <- select(T02_tared, -Wet_mass_of_core_g)
+T02_tared <- rename(T02_tared, Wet_mass_of_core_g = Wet_mass_of_core_g_corrected)
+
+T02 <- bind_rows(T02_tared, T02_untared)
+
+```
+
+#Fix Tree variable:
+```{r}
+T02$Tree <- "T02"
+```
+
+#select data:
+```{r}
+T02 <- select(T02,
+              Tree,
+              Dead_Burned,
+              Depth_cm,
+              Wet_mass_of_core_g,
+              Soil_for_nucleic_acid_g,
+              Soil_for_pH_g,
+              Soil_for_archive_g,
+              Sample_Notes
+              )
+```
+
+#Now append and continue.
+
+#Append:
+```{r}
+sample_data <- bind_rows(
+  T02,
+  T03,
+  T04,
+  T05,
+  T06,
+  T07
+)
+```
+
+#Keep only real samples:
+```{r}
+sample_data <- filter(sample_data, Wet_mass_of_core_g > 0)
+```
+
+#Fix the "Depth" variable; need to separate into top depth (number), bottom depth (number), and sampling depth (standardized character values)
+```{r}
+sample_data_depth <- as_tibble(str_split(sample_data$Depth_cm, "-", simplify = TRUE))
+```
+
+#Remove non-numeric characters:
+```{r}
+sample_data_depth$V1 <- str_remove(sample_data_depth$V1, "~")
+sample_data_depth$V1 <- str_remove(sample_data_depth$V1, " ")
+sample_data_depth$V2 <- str_remove(sample_data_depth$V2, "cm")
+sample_data_depth$V2 <- str_remove(sample_data_depth$V2, " ")
+```
+
+#Add to sample data and rename:
+```{r}
+sample_data$core_top_depth_cm <- sample_data_depth$V1
+sample_data$core_bottom_depth_cm <- sample_data_depth$V2
+```
+
+#Make a sampling depth variable:
+```{r}
+sample_data$sample_depth_cm <- str_c(sample_data$core_top_depth_cm, sample_data$core_bottom_depth_cm, sep = "-")
+```
+
+#Create sample IDs by combining Tree and depth variables:
+```{r}
+sample_data$Sample_ID <- str_c(sample_data$Tree, sample_data$sample_depth_cm, sep = "_")
+```
+
+#Rename core mass to show that it hasn't been tared:
+```{r}
+sample_data <- rename(sample_data, Wet_mass_of_core_g_plus_bag_15g = Wet_mass_of_core_g)
+```
+
+#Omit site-level data; these are already present in the tidyied site-level data.
+
+#Select needed data:
+```{r}
+sample_data_tidy <- select(sample_data,
+                           Sample_ID,
+                           Tree,
+                           sample_depth_cm,
+                           core_top_depth_cm,
+                           core_bottom_depth_cm,
+                           Wet_mass_of_core_g_plus_bag_15g,
+                           Soil_for_nucleic_acid_g,
+                           Soil_for_pH_g,
+                           Soil_for_archive_g,
+                           Sample_Notes)
+```
+
+#export sampling data:
+```{r}
+write_csv(sample_data_tidy, "Results/sample_data_tidy_mip.csv")
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

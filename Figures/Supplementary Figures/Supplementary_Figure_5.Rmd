@@ -1,0 +1,122 @@
+---
+title: "Supplementary Figure 5"
+author: "Anna Goodman"
+date: "2024-12-17"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# load packages
+```{r}
+library(tidyverse)
+library(gridExtra)
+library(ggpubr)
+library(cowplot)
+```
+
+# load data
+```{r}
+RNA_based_fungal_trait_relabund <- read.csv("../../Analysis/Microbial Communities/Imputed Biomass/Results/RNA_based_fungal_trait_relabund_mip.csv")
+RNA_fungal_trait_biomass <- read.csv("../../Analysis/Microbial Communities/Imputed Biomass/Results/RNA_based_fungal_trait_biomass_mip.csv")
+```
+
+# make the relative abundance half of the figure
+```{r}
+discrete.depth = mutate(RNA_based_fungal_trait_relabund, core_bottom_depth_cm = as.character(core_bottom_depth_cm)) # make a dataframe in which depth is a discrete variable
+discrete.depth$core_bottom_depth_cm <- factor(discrete.depth$core_bottom_depth_cm, levels=c("7.5", "15", "22.5", "30", "37.5", "45")) # put the levels of depth in order
+
+# make boxplot: 
+relab = ggplot(discrete.depth, aes(x = core_bottom_depth_cm, y = 100*ectomycorrhizal, fill = Tree_Health)) + # 'ectomycorrhizal' is a proportion; 100*ectomycorrhizal is a percentage
+  geom_boxplot() +
+  facet_wrap(~Tree_Health) + # panel by tree mortality
+  labs(x = "Core bottom depth (cm)", y =  "Relative abundance of ectomycorrhizal fungi (%)") +
+  theme_minimal() + scale_fill_manual(name = "Tree mortality", values = c("darkblue", "deeppink")) + # colorblind-friendly colors
+  theme(text = element_text(size = 7))
+```
+
+```{r}
+# make imputed biomass half of the figure
+discrete.depth = mutate(RNA_fungal_trait_biomass, core_bottom_depth_cm = as.character(core_bottom_depth_cm)) # make a dataframe in which depth is a discrete variable
+discrete.depth$core_bottom_depth_cm <- factor(discrete.depth$core_bottom_depth_cm, levels=c("7.5", "15", "22.5", "30", "37.5", "45")) # put the levels of depth in order
+
+# make boxplot:
+mass = ggplot(discrete.depth, aes(x = core_bottom_depth_cm, y = ectomycorrhizal, fill = Tree_Health)) + # 'ectomycorrhizal' is a proportion; 100*ectomycorrhizal is a percentage
+  geom_boxplot() +
+  facet_wrap(~Tree_Health) + # panel by tree mortality
+  labs(x = "Core bottom depth (cm)", y = "Imputed biomass of ectomycorrhizal fungi (ng PLFA/g soil)") +
+  theme_minimal() +
+  scale_fill_manual(name = "Tree mortality", values = c("darkblue", "deeppink")) + # colorblind-friendly colors
+  theme(text = element_text(size = 7))
+```
+
+```{r}
+mass_margins = mass + 
+  theme(plot.margin = margin(5.5, 5.5, 5.5, 5.5))
+relab_margins = relab + 
+  theme(plot.margin = margin(5.5, 5.5, 5.5, 5.5))
+```
+
+
+```{r}
+# make combined figure with each boxplot as a panel 
+
+supFig5 = ggpubr::ggarrange(
+  mass_margins, relab_margins, # list of boxplots
+  labels = c("A", "B"), 
+  font.label = list(size = 10, color = "black", face = "bold", family = NULL),
+  widths = c(5,5),
+  common.legend = TRUE, # same legend showing how color maps to tree mortality
+  legend = "top", # common legend sits above boxplot panels
+  align = "hv", # Align boxplots, horizontally and vertically
+  nrow = 1 # boxplots arranged in a single row
+)
+supFig5
+```
+```{r}
+supFig5 <- plot_grid(mass_margins, relab_margins, nrow = 1, labels = c("A", "B"), label_y = 1.01)
+supFig5
+```
+
+
+```{r}
+# save as pdf
+  ggsave(plot = supFig5, filename = ("Results/sup_fig_5_ecm_depth.pdf"), device = "pdf", height = 6, width = 11, units = "in")
+  ggsave(plot = supFig5, filename = ("../../Reports/Supplementary Material/Figures/sup_fig_5_ecm_depth.pdf"), device = "pdf", height = 6, width = 11, units = "in")
+```
+
+# add margins
+```{r}
+supFig5_margins = ggdraw() + draw_plot(supFig5, 
+                                       x = 0.05, # position figure to the right
+                                       y = 0.1, # positition figure near the bottom
+                                       width = 0.9,
+                                       height = 0.9)
+supFig5_margins
+```
+# add caption
+```{r}
+caption = ggdraw() +
+  draw_label("Supplementary Figure 5. Box and whisker plots showing the distribution of imputed biomass (A) and relative abundance (B) of ectomycorrhizal fungi across discrete soil depths.
+Imputed biomass was calculated as: the proportion of the fungal community (as measured by 16S rRNA metabarcoding) assigned to the ectomycorrhizal
+primary lifestyle * total living fungal biomass as measured by PLFA. Relative abundance was calculated by multiplying the aforementioned proportion by 100. Box
+boundaries are the first and third quartiles, and whiskers extend to extreme values within 1.5 * the interquartile range. Horizontal lines represent the median value.
+Data from soils collected under dead trees are represented in red, while data from soils collected under living trees are represented in blue. Sample size is variable
+between boxes due to complications with RNA extraction and amplification for metabarcoding. In “dead” panels, from left to right, n = 3, 2, 3, 2, 1. In “living” panels, n
+= 3, 2, 2, 3, 3.", size = 7, hjust = 0.5, vjust = 0.3)
+
+supFig5_caption = plot_grid(caption, supFig5_margins,
+                            ncol = 1,
+                            rel_heights = c(0.4, 1))
+
+supFig5_caption
+```
+
+# save figure
+```{r}
+  ggsave(plot = supFig5_caption, filename = ("Results/sup_fig_5_ecm_depth_formatted.pdf"), device = "pdf", height = 4.8, width = 11, units = "in")
+  ggsave(plot = supFig5_caption, filename = ("../../Reports/Supplementary Material/Figures/sup_fig_5_ecm_depth_formatted.pdf"), device = "pdf", height = 4.8, width = 11, units = "in")
+```
+

@@ -1,0 +1,150 @@
+---
+title: "Supplementary_Figure_6"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#load required packages:
+```{r}
+library("phyloseq")
+library("tidyverse")
+```
+
+#load required data:
+```{r}
+ps16S_positive = read_rds("../../Analysis/Microbial Communities/Fungal-Bacterial Interactions/DeSeq2 Indicator Species Analysis/Results/ps16S_ASVs_RNA_positive_mip.rds")
+```
+
+# 
+```{r}
+
+# Melt relativized phyloseq object of positively-influenced 16S ASVs into a long dataframe
+df <- psmelt(ps16S_positive)
+
+df <- df %>%
+  mutate(
+    Tree_label = paste0(Tree, ", ", core_bottom_depth_cm, " cm")
+  )
+
+# Get unique combinations of sample data and sort
+sample_order <- df %>%
+  select(Sample, Tree_Health, Tree, core_bottom_depth_cm) %>%
+  distinct() %>%
+  arrange(Tree_Health, Tree, core_bottom_depth_cm) %>%
+  pull(Sample)
+
+# Relevel the Sample factor to reflect this order
+df$Sample <- factor(df$Sample, levels = sample_order)
+
+# Create label vector with names matching Sample IDs
+sample_labels <- df %>%
+  distinct(Sample, Tree_label) %>%
+  deframe()  # converts two-column data frame to named vector
+
+
+```
+
+
+```{r}
+text_size = 11
+supfig6 = ggplot(df, aes(x = Sample, y = Abundance, fill = Phylum)) +
+  geom_bar(stat = "identity", position = "stack") +
+  facet_wrap(~ Tree_Health, scales = "free_x") +
+  scale_x_discrete(labels = sample_labels) +
+  scale_fill_discrete(labels = function(x) gsub("p__", "", x)) +
+  theme_minimal(base_size = text_size) +
+  theme(
+    axis.text = element_text(size = text_size),
+    axis.title = element_text(size = text_size),
+    legend.text = element_text(size = text_size),
+    legend.title = element_text(size = text_size),
+    strip.text = element_text(size = text_size),
+    plot.title = element_text(size = text_size),
+    plot.subtitle = element_text(size = text_size),
+    plot.caption = element_text(size = text_size),
+    axis.text.x = element_text(angle = 90, hjust = 1),
+    legend.key.size = unit(0.2, "cm")
+  ) +
+  ylab("Relative abundance") +
+  xlab("Soil core") +
+  labs(fill = "Phylum")
+
+```
+
+
+### export:
+```{r}
+# create the figure file in this results folder
+
+# requirements: 1000 pp1 (pixels per inch), 140 mm wide
+# 1 inch = 0.0393701 mm, 1 mm = 25.4 inches
+
+ppi = 300
+
+w_mm = 140
+hw_ratio = 5/11 # arbitrary
+
+h_mm = w_mm*hw_ratio
+w_i = w_mm/25.4
+h_i = h_mm/25.4
+
+jpeg("Results/sup_fig_6_ecm_promoted_bac_relabund.jpg", width = w_i * ppi, height = h_i * ppi, res = ppi)
+jpeg("../../Reports/Supplementary Material/Figures/sup_fig_6_ecm_promoted_bac_relabund.jpg", width = w_i * ppi, height = h_i * ppi, res = ppi)
+
+supfig6
+dev.off()
+```
+
+```{r}
+# save as pdf
+
+  ggsave(plot = supfig6, filename = ("Results/sup_fig_6_ecm_promoted_bac_relabund.pdf"), device = "pdf", height = h_i, width = w_i, units = "in")
+
+  ggsave(plot = supfig6, filename = ("../../Reports/Supplementary Material/Figures/sup_fig_6_ecm_promoted_bac_relabund.pdf"), device = "pdf", height = h_i, width = w_i, units = "in")
+
+```
+
+
+# add margins
+```{r}
+supfig6_margins = ggdraw() + draw_plot(supfig6, 
+                                       x = 0.05, # position figure to the right
+                                       y = 0.05, # positition figure near the bottom
+                                       width = 0.9,
+                                       height = 0.9)
+supfig6_margins
+```
+
+# add caption
+```{r}
+caption = ggdraw() +
+  draw_label("Supplementary Figure 6. Relative abundance of 'ectomycorrhizal-promoted' ASVs within whole-sample bacterial communities 
+as measured by 16S rRNA metabarcoding. 'Ectomycorrhizal-promoted' here refers to ASVs whose crude abundance in a soil sample was 
+positivley correlated with the imputed biomass of ectomycorrhizal fungi. The y-axis represents the proportion (0-1) of the RNA-based 
+bacterial community comprised by these ASVs within each discrete soil sample. On the X-axis, soil sample names denote both tree identity 
+and soil depth in cm, and are clustered by tree identity. ASVs are colored according to their genus.", size = text_size, hjust = 0.5, vjust = 0.5)
+
+supfig6_caption = plot_grid(caption, supfig6_margins,
+                            ncol = 1,
+                            rel_heights = c(0.2, 1))
+
+supfig6_caption
+```
+
+# save figure
+```{r}
+# save as pdf
+
+  ggsave(plot = supfig6_caption, filename = ("Results/sup_fig_6_ecm_promoted_bac_relabund_formatted.pdf"), device = "pdf", height = 8, width = 11, units = "in")
+
+  ggsave(plot = supfig6_caption, filename = ("../../Reports/Supplementary Material/Figures/sup_fig_6_ecm_promoted_bac_relabund_formatted.pdf"), device = "pdf", height = 8, width = 11, units = "in")
+
+```
+
+
+
+
+

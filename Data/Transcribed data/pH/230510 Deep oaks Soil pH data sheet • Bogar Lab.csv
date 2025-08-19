@@ -1,0 +1,8 @@
+Sample_ID,pH,Notes,date_pH
+DO-T02-0-7.5,6.76,"6.64,6.88  Neelima pH meter <--- Uncalibrated, took average of 2 measurements",230510
+DO-T02-30-37.5,5.2,,230510
+DO-T02-15-22.5,5.91,,230510
+DO-T02-22.5-30,5.61,,230510
+DO-T02-37.5-45,4.98,,230510
+DO-T02-7.5-15,6.25,,230510
+Blank CaCl2,5.82,,230510

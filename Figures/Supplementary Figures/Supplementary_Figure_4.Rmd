@@ -1,0 +1,10 @@
+---
+title: "Supplementary_Figure_4"
+output: html_document
+---
+
+# this figure is made by fa.diagram() in psych(), whcih works with base R and
+# was impossible to wrangle into a grob without cutting it off. it's written
+# directly into a pdf in Analysis/Microbial Communities/Factor Analysis/Factor_analysis_mip.Rmd
+# and this caption is added in word or adobe later:
+### "Supplementary Figure 4. Correlations between soil edaphic variables and the calculated factors displayed in Figure 1. Factors were computed in an exploratory factor analysis using the psych() R package."

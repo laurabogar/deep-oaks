@@ -1,0 +1,125 @@
+---
+title: "make_soil_metadata"
+author: "Glade Bogar"
+date: "2024-09-26"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#load required packages:
+```{r}
+library(tidyverse)
+```
+
+#load required data:
+```{r}
+sample_names <- read_csv("../../Data/DO_Sample_Names.csv")
+sample_data <- read_csv("../Sampling/Results/sample_data_tidy_mip.csv")
+site_data <- read_csv("../Sampling/Results/site_data_tidy_mip.csv")
+pH_data <- read_csv("../Soil pH/Results/Soil_pH_Tidy_mip.csv")
+moisture_data <- read_csv("../../Analysis/Soil Moisture/Results/soilmoisture_calc_mip.csv")
+color_data <- read_csv("../Soil Color/Results/Soil_color_Tidy_mip.csv")
+texture_data <- read.csv("../Brookside/Results/Soil_texture_Tidy_mip.csv")
+texture_classes <- read_csv("../../Analysis/Soil Texture/Results/soiltexture_calc_mip.csv")
+soil_data <- read_csv("../Brookside/Results/Soil_general_Tidy_mip.csv")
+CN_data <- read_csv("../Brookside/Results/Soil_CN_Tidy_mip.csv")
+bulk_density <- read_csv("../../Analysis/Bulk Soil Density/Results/bulk_density_mip.csv")
+# REMOVED nucleic acid extraction yields - AG June 2025
+PLFA <- read_csv("../../Analysis/Ward Lab/PLFA/Results/PLFA_Analysis_mip.csv")
+```
+
+
+#Rename sample IDs for ease of join:
+```{r}
+sample_names <- rename(sample_names, Sample_ID_1 = "Sample_id")
+sample_names <- rename(sample_names, Sample_ID_2 = "Sample_ID...3")
+sample_names <- rename(sample_names, Sample_ID_3 = "Sample_ID...4")
+```
+
+#Rename IDs in other samples for join:
+```{r}
+CN_data <- rename(CN_data, DO_ID = "Sample_id")
+color_data <- rename(color_data, Sample_ID_1 = "Sample_id")
+color_data <- color_data %>%
+  mutate(Sample_ID_1 = paste("DO", Sample_ID_1, sep = "_"))
+moisture_data <- rename(moisture_data, Sample_ID_1 = "Sample_ID")
+pH_data <- rename(pH_data, Sample_ID_1 = "Sample_ID")
+pH_data <- rename(pH_data, pH_FM_CaCl2 = "pH")
+sample_data <- rename(sample_data, Sample_ID_2 = "Sample_ID")
+soil_data <- rename(soil_data, DO_ID = "Sample_id")
+soil_data <- rename(soil_data, pH_AD_H20 = "pH")
+texture_classes <- rename(texture_classes, DO_ID = "Sample_id")
+texture_data <- rename(texture_data, DO_ID = "Sample_id")
+```
+
+#fix texture classes for join:
+```{r}
+texture_classes <- select(texture_classes, DO_ID, TextureClass)
+```
+
+
+#left join all:
+```{r}
+soil_metadata <- left_join(sample_names, sample_data)
+soil_metadata <- left_join(soil_metadata, site_data)
+soil_metadata <- left_join(soil_metadata, moisture_data)
+soil_metadata <- left_join(soil_metadata, bulk_density)
+soil_metadata <- left_join(soil_metadata, color_data)
+soil_metadata <- left_join(soil_metadata, texture_data)
+soil_metadata <- left_join(soil_metadata, texture_classes, by = "DO_ID")
+soil_metadata <- left_join(soil_metadata, pH_data)
+soil_metadata <- left_join(soil_metadata, soil_data, by = "DO_ID")
+soil_metadata <- left_join(soil_metadata, CN_data)
+soil_metadata <- left_join(soil_metadata, PLFA)
+```
+
+#remove some unnecessary columns:
+```{r}
+soil_metadata <- select(soil_metadata,
+                        -Sample_ID_1,
+                        -Sample_ID_2,
+                        -Sample_ID_3,
+                        -Wet_mass_of_core_g_plus_bag_15g,
+                        -Soil_for_nucleic_acid_g,
+                        -Soil_for_pH_g,
+                        -Soil_for_archive_g,
+                        -Photo_Taken,
+                        -notes_color,
+                        -notes_pH,
+                        -date_pH,
+                        -Estimated_Nitrogen_Release_number_N_per_acre
+)
+```
+
+#write soil metadata:
+```{r}
+write_csv(soil_metadata, "Results/per_sample_metadata_mip.csv")
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

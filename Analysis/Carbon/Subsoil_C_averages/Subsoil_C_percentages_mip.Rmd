@@ -1,0 +1,65 @@
+---
+title: "Subsoil carbon means"
+author: "Anna Goodman"
+date: "2024-11-25"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+## load required packages
+```{r}
+library(tidyverse)
+```
+
+## load data
+```{r}
+metadata <- read.csv("../Density_Corrected_C/Results/per_sample_metadata_Ccorrected_mip.csv")
+metadata <- metadata %>%
+  filter(!DO_ID %in% c("DO_T04_30-37.5", "DO_T04_37.5-45", "DO_T07_37.5-45")) # remove the three samples which we're missing bulk density, and therefore a density-corrected carbon mass, for
+
+```
+
+# calculate the percentage of total carbon stored in the subsoil
+```{r}
+subsoil = filter(metadata, metadata$core_bottom_depth > 22.5) # make a data frame containing all cores in which no part was above 20 cm
+
+subsoil = subsoil %>% group_by(Tree) # group this dataframe by tree
+
+subsoil = summarise(subsoil, mass_C_Mg_per_ha = sum(mass_C_Mg_per_ha)) # find the average MgC/ha in the subsoil under each tree 
+
+subsoil # display these averages
+
+allsoil = metadata %>% group_by(Tree) # group metadata of all soils by tree
+
+allsoil = summarise(allsoil, mass_C_Mg_per_ha = sum(mass_C_Mg_per_ha)) # find the average MgC/ha in the full 0 - 45 cm soil column under each tree 
+allsoil
+
+subsoil = dplyr::rename(subsoil, subsoil_mass_C_Mg_per_ha = mass_C_Mg_per_ha) # rename column of averages for clarity in next step
+allsoil = dplyr::rename(allsoil, allsoil_mass_C_Mg_per_ha = mass_C_Mg_per_ha) # rename column of averages for clarity in next step
+
+both = full_join(allsoil, subsoil, join_by("Tree")) # put the all-soil and subsoil averages next to each other
+both
+both = mutate(both, percent_C_subsoil = (both$subsoil_mass_C_Mg_per_ha/both$allsoil_mass_C_Mg_per_ha)) # calculate the average percentage of each soil column's total carbon which is stored in the subsoil
+both = mutate(both, notes = c(NA,NA,"Density-adjusted carbon incalculable (bulk density data missing) for the two deepest cores. % subsoil should be artificially low.", NA, NA, "Density-adjusted carbon incalculable (bulk density data missing) for the deepest core. % subsoil should be artificially low."))
+both = mutate(both, average_percent_C_subsoil_alltrees = mean(both$percent_C_subsoil)) # record overall mean % of carbon stored in the subsoil
+
+average_percent_C_subsoil_trees_with_complete_C_data = mean(both$percent_C_subsoil[c(1,2,4,5)]) # calculate mean % of carbon stored in the subsoil, omitting trees where we are missing data from some subsoil cores (T04: living, and T07: dead). Trees with complete C data are T02, T03, T05, and T06.
+
+both = mutate(both, average_percent_C_subsoil_trees_with_complete_C_data = average_percent_C_subsoil_trees_with_complete_C_data) # record mean % of carbon stored in the subsoil, omitting trees where we are missing data from some subsoil cores
+
+both # display
+
+```
+
+
+
+```{r}
+write_csv(both, "Results/Subsoil_C_averages_percentages_mip.csv")
+write_csv(both, "../../../Reports/Subsoil_C_averages_percentages_mip.csv")
+
+```

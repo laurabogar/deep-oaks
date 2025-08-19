@@ -1,0 +1,7 @@
+Sample_Date_yr.mo.dy,Tree,Avenza_Name,Photo_Taken,Site_Notes,Sampler_LB,Sampler_GB,Sampler_RM,Sampler_DG,Tree_Burn_Status,Tree_Health,latitude,longitude,Trees_within_10m,Trees_within_10m_count,Closest_Tree_Identity,Closest_Tree_Health,Closest_Tree_Distance_m,Closest_Tree_Location_degrees,Second_Closest_Tree_Identity,Second_Closest_Tree_Health,Second_Closest_Tree_Distance_m,Second_Closest_Tree_Location_degrees,Sampler_EW,Sampler_BL,Sampler_DL
+230508,T02,NA,Y,Test Glade & Laura Monday May 8 2023,TRUE,TRUE,FALSE,FALSE,burned,dead,38.48673,-122.15038,yes,,Oak,dead,,,Oak,dead,,,FALSE,FALSE,FALSE
+230520,T03,Tree 03,Y,"Saturday May 20 2023 LB,RM,DG",TRUE,FALSE,TRUE,TRUE,unburned,living,38.486593,-122.150304,yes,2,Blue_Oak,living,3.05,344,Blue_Oak,living,6.68,290,FALSE,FALSE,FALSE
+230522,T04,Tree 04,Y,"center of core distance from trunk is 47cm. Live and burned, west side of tree",TRUE,FALSE,FALSE,FALSE,unburned,living,38.488092,-122.150914,yes,1,Manzanita,living,6.80,0,,,,0,TRUE,FALSE,FALSE
+230526,T05,Tree 05,Y,Sampling SW of tree,TRUE,FALSE,FALSE,FALSE,burned,dead,38.488087,-122.151009,no,0,,,,,,,,,TRUE,TRUE,FALSE
+230528,T06,Tree 06 alive,Y,Sampling ESE side of tree,TRUE,FALSE,FALSE,FALSE,burned,living,38.488087,-122.151882,no,0,,,,,,,,,TRUE,FALSE,TRUE
+230529,T07,Tree 07 dead,Y,NA,TRUE,FALSE,FALSE,FALSE,burned,dead,38.488857,-122.151742,yes,2,Pine,dead,2.43,45,Oak,dead,5.57,104,TRUE,TRUE,FALSE

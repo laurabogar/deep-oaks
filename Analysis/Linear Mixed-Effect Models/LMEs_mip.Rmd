@@ -1,0 +1,359 @@
+---
+title: "Linear Mixed-Effect Models Formalized"
+author: "Anna Goodman"
+date: "2024-12-10"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Linear Mixed-Effect Models
+
+## 10 analyses of interest:
+
+### Microbial population sizes
+
+#### 1) Total living microbial biomass; PLFA ~ depth * tree mortality, block = tree identity
+#### 2) Total living bacterial biomass; PLFA ~ depth * tree mortality, block = tree identity
+#### 3) Total living fungal biomass; log(PLFA) ~ depth * tree mortality, block = tree identity
+#### 4) Fungi:bacteria ratio; log(total fungal PLFA/total bacterial PLFA) ~ depth * tree mortality, block = tree identity
+
+### Prevalence of ectomycorrhizal fungi
+
+#### 5) Relative abundance; log(proportion of RNA-based ITS ASVs belonging to ectomycorrhizal fungi) ~ depth * tree mortality, block = tree identity
+#### 6) Imputed biomass; log((Proportion of RNA-based ITS ASVs belonging to ectomycorrhizal fungi) * (total fungal PLFA)) ~ depth * tree mortality, block = tree identity
+
+### Carbon by depth and tree mortality
+
+#### 7) Total carbon; (MgC/ha) ~ depth * tree mortality, block = tree identity
+#### 8) C:N ratio; (C:N) ~ depth * tree mortality, block = tree identity
+
+### Carbon by ectomycorrhizal-associated biomass
+
+#### 9) Total carbon; MgC/ha ~ (imputed biomass of ectomycorrhizal fungi + imputed biomass of ectomycorrhizal-assoicated bacteria), block = tree identity
+#### 10) C:N ratio; (C:N) ~ (imputed biomass of ectomycorrhizal fungi + imputed biomass of ectomycorrhizal-assoicated bacteria), block = tree identity
+
+## load required packages:
+
+```{r}
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(lme4)
+library(lmerTest)
+```
+
+## Models 1, 2, 7, and 8: untransformed, nucleic acid-independent LMEs
+
+### load data
+```{r}
+metadata36 <- read.csv("../Carbon/Density_Corrected_C/Results/per_sample_metadata_Ccorrected_mip.csv") # load metadata containing all 36 samples (other versions which include nucleic acid data contain fewer samples, reflecting sample loss during nucleic acid extraction and amplification processes)
+```
+
+
+### make a list of response variables to be modeled with untransformed, nucleic acid-independent LMEs
+```{r}
+nonlog_36_over_depth = c("PLFA_Total_Living_Microbial_Biomass_ng_g", "PLFA_Total_Bacteria_ng_g", "C_per_N_Ratio", "mass_C_Mg_per_ha") # these variables do not require transformation, as their untransformed LMEs lmes meet statistical assumptions of normality
+```
+
+### generate LMEs
+```{r}
+lmes.depth.36 = list() # initialize empty list to store these models
+lmes.depth.36_summaries = list() # initialize empty list to store model summaries
+lmes.depth.36_summaries_df = list() # initialize empty list to store model summaries
+
+for (var in nonlog_36_over_depth) { # begin a loop which iterates through the list of variables modeled with this common formula, creating the model for each
+  formula = as.formula(paste(var, "~core_bottom_depth_cm * Tree_Health + (1|Tree)")) # define the common formula
+  
+  lme1 <- lmer(formula, data = metadata36) # create the model
+  
+  lmes.depth.36[[var]] = lme1 # store the model in the list initialized above
+  lmes.depth.36_summaries[[var]] = summary(lme1) # store the model summary in the list initialized above
+  lmes.depth.36_summaries_df[[var]] = as.data.frame(summary(lme1)$coefficients) # store dataframe of the model summary in the list initialized above
+}
+
+lmes.depth.36_summaries # display model summaries
+
+
+```
+
+### view diagnostic plots comparing each model's residuals to fitted values
+```{r}
+modelcheckplots = list() # initialize empty list to store diagnostic plots of these models
+for (var in nonlog_36_over_depth) { # begin a loop which iterates through the list of variables modeled with this common formula, generating diagnostic plots for each
+  p = plot(lmes.depth.36[[var]]) # generate diagnostic plots
+  modelcheckplots[[var]] = p # store plots in the list initialized above
+}
+
+modelcheckplots # display diagnostic plots of each model
+```
+
+### check normality of residuals with Shapiro-Wilks Test, residuals are normal if p > 0.05
+```{r}
+shap.tests = list() # initialize empty list to store results of the Shapiro-Wilks test
+for (var in nonlog_36_over_depth) { # begin a loop which iterates through the list of variables modeled with this common formula, performing the Shapiro-Wilks test for each
+  shap.test1 = shapiro.test(residuals(lmes.depth.36[[var]])) # perform Shapiro-Wilks test
+  shap.tests[[var]] = shap.test1 # store results in the list initialized above
+}
+
+shap.tests # display test results
+```
+
+### Model 2 extended: Address the tree health:depth interaction in total bacteria
+```{r}
+# separate data from living and dead trees
+
+living = filter(metadata36, Tree_Health == "living") # make new dataframe containing only data from soils under living trees
+dead = filter(metadata36, Tree_Health == "dead") # make new dataframe containing only data from soils under living dead
+
+living.bac = lmer(PLFA_Total_Bacteria_ng_g ~ core_bottom_depth_cm + (1|Tree), data = living) # recreate the above LME on living tree samples only, omitting Tree_Health
+
+summary(living.bac)  # display model summary
+model2_living_bac_summary = as.data.frame(summary(living.bac)$coefficients) # store summary as dataframe
+
+
+plot(living.bac) # display diagnostic plot
+shapiro.test(residuals(living.bac)) # display Shapiro-Wilks test results
+
+dead.bac = lmer(PLFA_Total_Bacteria_ng_g ~ core_bottom_depth_cm + (1|Tree), data = dead) # recreate the above LME on dead tree samples only, omitting Tree_Health
+
+model2_dead_bac_summary = as.data.frame(summary(dead.bac)$coefficients) # store summary as dataframe) 
+summary(dead.bac) # display model summary
+
+plot(dead.bac) # display diagnostic plots
+shapiro.test(residuals(dead.bac)) # display Shapiro-Wilks test results
+
+```
+
+
+## Models 3 and 4: log-transformed, nucleic acid-independent LMEs
+
+### 3) Total living fungal biomass; log(PLFA) ~ depth * tree mortality, block = tree identity
+
+#### generate model
+```{r}
+PLFA_fungi = lmer(log(PLFA_Total_Fungi_ng_g) ~ core_bottom_depth_cm * Tree_Health + (1|Tree), data = metadata36) # generate model
+
+model3_summary = as.data.frame(summary(PLFA_fungi)$coefficients) # store summary as dataframe
+summary(PLFA_fungi) # display model summary
+```
+
+#### check statistical assumptions
+```{r}
+plot(PLFA_fungi) # generating diagnostic plots
+
+shapiro.test(residuals(PLFA_fungi)) # perform Shapiro-Wilks test for normality of residuals, residuals are normal if p > 0.05
+```
+
+### Model 3 extended: Address the tree health:depth interaction in total fungi
+
+```{r}
+living.fun = lmer(log(PLFA_Total_Fungi_ng_g) ~ core_bottom_depth_cm + (1|Tree), data = living) # recreate the above LME on living tree samples only, omitting Tree_Health
+model3_living_fun_summary = as.data.frame(summary(living.fun)$coefficients) # store summary as dataframe 
+summary(living.fun) # display model summary
+
+plot(living.fun) # display diagnostic plots
+shapiro.test(residuals(living.fun)) # display Shapiro-Wilks test results
+
+
+
+
+dead.fun = lmer(log(PLFA_Total_Fungi_ng_g) ~ core_bottom_depth_cm + (1|Tree), data = dead) # recreate the above LME on dead tree samples only, omitting Tree_Health
+model3_dead_fun_summary = as.data.frame(summary(dead.fun)$coefficients) # store summary as dataframe ) 
+summary(dead.fun) # display model summary
+
+plot(dead.fun) # display diagnostic plots
+shapiro.test(residuals(dead.fun)) # display Shapiro-Wilks test results
+```
+
+
+### 4) Fungi:bacteria ratio; log(total fungal PLFA/total bacterial PLFA) ~ depth * tree mortality, block = tree identity
+
+#### generate model
+```{r}
+PLFA_fungi_bacteria_ratio = lmer(log(PLFA_Fungi_Bacteria_Ratio_ng_g) ~ core_bottom_depth_cm * Tree_Health + (1|Tree), data = metadata36) # generate model
+
+model4_summary = as.data.frame(summary(PLFA_fungi_bacteria_ratio)$coefficients) # store summary as dataframe  
+summary(PLFA_fungi_bacteria_ratio) # display model summary
+```
+
+#### check statistical assumptions
+```{r}
+plot(PLFA_fungi_bacteria_ratio) # generating diagnostic plots
+
+shapiro.test(residuals(PLFA_fungi_bacteria_ratio)) # perform Shapiro-Wilks test for normality of residuals, residuals are normal if p > 0.05
+```
+
+
+## Models 5 and 6: log-transformed, nucleic acid-dependent LMEs
+
+### 5) Relative abundance; log(proportion of RNA-based ITS ASVs belonging to ectomycorrhizal fungi) ~ depth * tree mortality, block = tree identity
+
+#### load data
+
+```{r}
+metadata21.relabund <- read.csv("../Microbial Communities/Imputed Biomass/Results/RNA_based_fungal_trait_relabund_mip.csv") # load metadata containing the relative abundance of all fungal primary lifestyles, as assigned to RNA-based ITS ASVs by the Fungal Traits database. This dataframe has no NAs, and contains data from each sample for which we successfully amplified ITS cDNA. n = 21.
+
+metadata21.biomass <- read.csv("../Microbial Communities/Imputed Biomass/Results/RNA_based_fungal_trait_biomass_mip.csv") # load metadata containing the imputed biomass of all fungal primary lifestyles, as assigned to RNA-based ITS ASVs by the Fungal Traits database. This dataframe has no NAs, and contains data from each sample for which we successfully amplified ITS cDNA. n = 21. 
+
+metadata27 <- read.csv("../Microbial Communities/Fungal-Bacterial Interactions/DeSeq2 Indicator Species Analysis/Results/metadata_with_ECMasssociated3trees_mip.csv") # load metadata containing imputed biomass of ectomycorrhizal fungi and ectomycorrhizal-associated bacteria. This dataframe has NAs, as it contains data from each sample for which we successfully amplified ITS cDNA OR 16S cDNA (both RNA-derived). Only 20 samples had both.
+metadata27 <- mutate(metadata27, ectomycorrhizal_relabund = ectomycorrhizal/PLFA_Total_Fungi_ng_g) # add ectomycorrhizal relative abundance
+metadata27 = dplyr::rename(metadata27, ectomycorrhizal_biomass = ectomycorrhizal) # rename imputed biomass of ectomycorrhizal fungi to distinguish from relatibe abundance
+
+metadata27_tidy = filter(metadata27, !(is.na(metadata27$ectomycorrhizal_relabund))) # take the rows with NAs out of metadata27. n = 20.
+```
+
+#### generate model from metadata21
+```{r}
+ecm_relabund = lmer(log(ectomycorrhizal) ~ core_bottom_depth_cm * Tree_Health + (1|Tree), data = metadata21.relabund) # generate model
+
+model5_ecm_relabund_summary = as.data.frame(summary(ecm_relabund)$coefficients) # store summary as dataframe
+summary(ecm_relabund) # display model summary
+```
+
+##### check statistical assumptions
+```{r}
+plot(ecm_relabund) # generating diagnostic plots
+
+shapiro.test(residuals(ecm_relabund)) # perform Shapiro-Wilks test for normality of residuals, residuals are normal if p > 0.05
+```
+
+
+### 6) Imputed biomass; log((Proportion of RNA-based ITS ASVs belonging to ectomycorrhizal fungi) * (total fungal PLFA)) ~ depth * tree mortality, block = tree identity
+
+#### generate model from metadata21.biomass
+```{r}
+ecm_biomass.21 = lmer(log(ectomycorrhizal) ~ core_bottom_depth_cm * Tree_Health + (1|Tree), data = metadata21.biomass) # generate model
+
+model6_ecm_biomass_summary = as.data.frame(summary(ecm_biomass.21)$coefficients) # store summary as dataframe
+summary(ecm_biomass.21) # display model summary
+```
+
+#### check statistical assumptions
+```{r}
+plot(ecm_biomass.21) # generating diagnostic plots
+
+shapiro.test(residuals(ecm_biomass.21)) # perform Shapiro-Wilks test for normality of residuals, residuals are normal if p > 0.05
+```
+
+## Models 9 and 10: untransformed, nucleic acid dependent LMEs
+
+### 9) Total carbon; MgC/ha ~ (imputed biomass of ectomycorrhizal fungi + imputed biomass of ectomycorrhizal-assoicated bacteria), block = tree identity
+
+#### generate model from metadata27
+```{r}
+totalC = lmer(mass_C_Mg_per_ha ~ ECM_associated_biomass + (1|Tree), data = metadata27_tidy) # generate model
+
+model9_totalC_summary = as.data.frame(summary(totalC)$coefficients) # store summary as dataframe
+summary(totalC) # display model summary
+```
+
+#### check statistical assumptions
+```{r}
+plot(totalC) # generating diagnostic plots
+
+shapiro.test(residuals(totalC)) # perform Shapiro-Wilks test for normality of residuals, residuals are normal if p > 0.05
+```
+
+
+
+### 10) C:N ratio; (C:N) ~ (imputed biomass of ectomycorrhizal fungi + imputed biomass of ectomycorrhizal-assoicated bacteria), block = tree identity
+
+```{r}
+C_per_N = lmer(C_per_N_Ratio ~ ECM_associated_biomass + (1|Tree), data = metadata27_tidy) # generate model
+
+summary(C_per_N) # display model summary
+model10_C_per_N_summary= as.data.frame(summary(C_per_N)$coefficients) # store summary as dataframe
+```
+
+#### check statistical assumptions
+```{r}
+plot(C_per_N) # generating diagnostic plots
+
+shapiro.test(residuals(C_per_N)) # perform Shapiro-Wilks test for normality of residuals, residuals are normal if p > 0.05
+```
+
+
+# compile model summaries for export
+```{r}
+# Models 1, 2, 7, and 8: untransformed, nucleic acid-independent LMEs
+# lmes.depth.36_summaries_df is already a list of summaries
+names(lmes.depth.36_summaries_df) = c("Model 1", "Model 2", "Model 7", "Model 8")
+
+
+
+# start our big list of all the model summaries with this existing list 
+all_models = lmes.depth.36_summaries_df
+
+# Model 2 extended
+all_models[["Model 2.1 - living trees only"]] <- model2_living_bac_summary
+all_models[["Model 2.2 - dead trees only"]] <- model2_dead_bac_summary
+
+# Models 3 and 4: log-transformed, nucleic acid-independent LMEs
+all_models[["Model 3"]] <- model3_summary
+all_models[["Model 3.1 - living trees only"]] <- model3_living_fun_summary
+all_models[["Model 3.2 - dead trees only"]] <- model3_dead_fun_summary
+all_models[["Model 4"]] <- model4_summary
+
+# Models 5 and 6: log-transformed, nucleic acid-dependent LMEs
+all_models[["Model 5"]] <- model5_ecm_relabund_summary
+all_models[["Model 6"]] <- model6_ecm_biomass_summary
+
+# Models 9 and 10: untransformed, nucleic acid dependent LMEs
+all_models[["Model 9"]] <- model9_totalC_summary
+all_models[["Model 10"]] <- model10_C_per_N_summary
+
+
+```
+
+```{r}
+all_models <- Map(function(df, name) { # Add the name of the model as a column, and put it on the far left side of the dataframe
+  df$Model <- name
+  df
+}, all_models, names(all_models))
+
+
+```
+
+```{r}
+all_models <- lapply(all_models, function(df) {
+  df <- cbind(Factor = rownames(df), df) # copy rownames into a column, put it on the left side of the dataframe
+  rownames(df) <- NULL # remove the rownames now that factors are represented in a column
+  
+  df <- select(df, c(Model, Factor, Estimate, 'Std. Error', df, 't value', 'Pr(>|t|)')) # reorder the columns to Model comes first
+  
+  df
+})
+
+```
+
+
+## bind tidy results into a single dataframe
+```{r}
+table <- do.call(rbind, all_models)
+
+rownames(table) <- NULL # remove the rownames now that factors are represented in a column
+
+colnames(table)
+
+table <- table %>%
+      mutate(Factor = case_when(
+        Factor == "core_bottom_depth_cm" ~ "Depth",
+        Factor == "Tree_Healthliving" ~ "Tree mortality",
+        Factor == "core_bottom_depth_cm:Tree_Healthliving" ~ "Depth:Tree mortality",
+        Factor == "ECM_associated_biomass" ~ "Biomass sum of ectomycorrhizal fungi + associated bacteria",
+        TRUE ~ Factor # Keep other values unchanged
+      ))
+
+table
+```
+
+## export
+``` {r}
+write_csv(table, "Results/LME_table.csv")
+write_csv(table, "../../Reports/Supplementary Material/LME_table.csv")
+
+```
+

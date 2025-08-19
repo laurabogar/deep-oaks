@@ -1,0 +1,284 @@
+---
+title: "Factor Analysis"
+author: "Anna Goodman"
+date: "2025-04-29"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+#load needed packages:
+```{r}
+library('tidyverse')
+packageVersion('tidyverse')
+
+library('psych')
+packageVersion('psych')
+
+library('ggplot2')
+packageVersion('ggplot2')
+
+library(grid)
+
+library(gridGraphics)
+
+```
+
+#load per-sample metadata:
+```{r}
+metadata <- read_csv("../../../TidyData/Metadata/Results/per_sample_metadata_mip.csv")
+```
+
+#Select (numeric only) predictive data
+```{r}
+sample_data_for_FA <- metadata %>% 
+    select(where(is.numeric)) #get numeric
+
+write_csv(sample_data_for_FA, "Results/metadata_temp_mip.csv")
+
+sample_data_for_FA <- select(sample_data_for_FA,
+                                              core_bottom_depth_cm,
+                                              latitude,
+                                              longitude,
+                                              PerCMoisture,
+                                              bulk_density_g_cm3,
+                                              Value_dry,
+                                              Value_wet,
+                                              Chroma_dry,
+                                              Chroma_wet,
+                                              clay_percent,
+                                              sand_percent,
+                                              pH_FM_CaCl2,
+                                              Total_Exchange_Capacity_meq_per_100_g,
+                                              organic_matter_percent,
+                                              S_ppm,
+                                              P_mg_per_kg,
+                                              Ca_mg_per_kg,
+                                              Mg_mg_per_kg,
+                                              K_mg_per_kg,
+                                              Na_mg_per_kg,
+                                              #Ca_percent,
+                                              #Mg_percent,
+                                              #K_percent,
+                                              #Na_percent,
+                                              B_mg_per_kg,
+                                              Fe_mg_per_kg,
+                                              Mn_mg_per_kg,
+                                              Cu_mg_per_kg,
+                                              Zn_mg_per_kg,
+                                              Al_mg_per_kg,
+                                              "NO3-N_ppm",
+                                              "NH4-N_ppm",
+                                              Bray_I_P_ppm,
+                                              carbon_percent,
+                                              nitrogen_percent,
+                                              C_per_N_Ratio,
+                                              # DNA_qubit_ng_g_soil,
+                                              # RNA_qubit_ng_g_soil,
+                                              PLFA_Total_Living_Microbial_Biomass_ng_g,
+                                              PLFA_Total_Bacteria_ng_g,
+                                              PLFA_Total_Fungi_ng_g,
+                                              PLFA_Fungi_Bacteria_Ratio_ng_g)
+
+write_csv(sample_data_for_FA, "Results/sample_data_for_FA_mip.csv")
+```
+
+#factor analysis will not run with NAs. So, do we drop samples with NA values, or variables with NA values?
+
+#Given the relatively small number of samples, and the need to accuralte represent deep samples, drop NA variables:
+```{r}
+sample_data_for_FA <- sample_data_for_FA[ , colSums(is.na(sample_data_for_FA)) == 0]
+```
+
+### BEGIN ANALYSIS ###
+
+#view dataset:
+```{r}
+describe(sample_data_for_FA)
+```
+
+#retrieve dataset dimensions:
+```{r}
+dim(sample_data_for_FA)
+```
+
+#"KMO"
+#"The Kaiser-Meyer-Olkin (KMO) used to measure sampling adequacy is a better measure of factorability."
+```{r}
+KMO(sample_data_for_FA)
+```
+
+#"According to Kaiser’s (1974) guidelines, a suggested cutoff for determining the factorability of the sample data is KMO ≥ 60.
+
+#increase the KMO by omitting 'low-contribution' variables:
+```{r}
+sample_data_for_FA_trim <- sample_data_for_FA[, KMO(sample_data_for_FA)$MSAi > 0.12] # Get rid of all variables with MSA < 0.12
+
+KMO(sample_data_for_FA_trim)
+```
+
+#"Bartlett’s Test of Sphericity"
+```{r}
+cortest.bartlett(sample_data_for_FA_trim)
+cortest.bartlett(cor(sample_data_for_FA_trim))
+```
+
+#explanation: "Small values (p < 0.05) of the significance level indicate that a factor analysis may be useful with our data.
+
+#test determinant:
+```{r}
+det(cor(sample_data_for_FA_trim))
+```
+
+#Explanation: "We have a positive determinant, which means the factor analysis will probably run."
+#So it's miniscule but technically positive; will it go?
+
+#The number of factors to extract
+
+#Scree plot:
+```{r}
+library(ggplot2)
+
+fafitfree <- fa(sample_data_for_FA_trim,
+                nfactors = ncol(sample_data_for_FA_trim),
+                rotate = "none")
+
+n_factors <- length(fafitfree$e.values)
+
+scree <- data.frame(
+  Factor_n =  as.factor(1:n_factors), 
+  Eigenvalue = fafitfree$e.values)
+
+ggplot(scree, aes(x = Factor_n, y = Eigenvalue, group = 1)) + 
+  geom_point() + geom_line() +
+  xlab("Number of factors") +
+  ylab("Initial eigenvalue") +
+  labs( title = "Scree Plot", 
+        subtitle = "(Based on the unreduced correlation matrix)")
+```
+
+
+#Parallel Analysis
+
+#"We can use the parallel() function from the nFactors package (Raiche & Magis, 2020) to perform a parallel analysis"
+```{r}
+parallel <- fa.parallel(sample_data_for_FA_trim)
+```
+
+
+#Conducting the Factor Analysis
+
+#Factor analysis using fa method, 3 factors:
+```{r}
+fa.none <- fa(r = sample_data_for_FA_trim, 
+              nfactors = 3,
+              # covar = FALSE,
+              #SMC = TRUE,
+              fm = "pa", # type of factor analysis we want to use (“pa” is principal axis factoring)
+              max.iter = 100, # (50 is the default, but we have changed it to 100
+              rotate = "varimax") # none rotation
+print(fa.none)
+```
+
+#Factor Analysis using the factanal method:
+```{r}
+factanal.none <- factanal(sample_data_for_FA_trim,
+                          factors = 3,
+                          scores = c("regression"),
+                          rotation = "varimax")
+print(factanal.none)
+```
+
+
+#Regression analysis:
+```{r}
+head(fa.none$scores)
+```
+
+#Labeling the data
+```{r}
+fa_data <- cbind(metadata["DO_ID"], fa.none$scores)
+
+#Labeling the data
+names(fa_data) <- c("DO_ID", "F1", "F2", "F3")
+head(fa_data)
+
+write_csv(fa_data, "Results/factors_3.csv")
+```
+
+
+#Factor analysis using fa method, 2 factors:
+```{r}
+fa.none <- fa(r = sample_data_for_FA_trim, 
+              nfactors = 2,
+              # covar = FALSE,
+              #SMC = TRUE,
+              fm = "pa", # type of factor analysis we want to use (“pa” is principal axis factoring)
+              max.iter = 100, # (50 is the default, but we have changed it to 100
+              rotate = "varimax") # none rotation
+print(fa.none)
+```
+
+#Factor Analysis using the factanal method:
+```{r}
+factanal.none <- factanal(sample_data_for_FA_trim,
+                          factors = 2,
+                          scores = c("regression"),
+                          rotation = "varimax")
+print(factanal.none)
+```
+
+
+#Graph factor Loading Matrices, save as a pdf in various places
+## this results folder
+```{r}
+pdf(file = "Results/Factor_Analysis_Graph_2factors_mip.pdf",   # The directory you want to save the file in
+    width = 30, # The width of the plot in inches
+    height = 8) # The height of the plot in inches
+
+ fa.diagram(fa.none)
+ 
+dev.off()
+```
+## figures folder
+```{r}
+pdf(file = "../../../Figures/Supplementary Figures/Results/sup_fig_4_Factor_Analysis_Graph_2factors_mip.pdf",   # The directory you want to save the file in
+    width = 30, # The width of the plot in inches. stupid wide because that's the only way to not get the graph cut off
+    height = 8) # The height of the plot in inches
+
+ fa.diagram(fa.none)
+ 
+dev.off()
+```
+## reports folder
+```{r}
+pdf(file = "../../../Reports/Supplementary Material/Figures/sup_fig_4_Factor_Analysis_Graph_2factors_mip.pdf",   # The directory you want to save the file in
+    width = 30, # The width of the plot in inches
+    height = 8) # The height of the plot in inches
+
+ fa.diagram(fa.none)
+ 
+dev.off()
+```
+
+
+#Regression analysis:
+```{r}
+head(fa.none$scores)
+```
+
+#Labeling the data
+```{r}
+fa_data <- cbind(metadata["DO_ID"], fa.none$scores)
+
+#Labeling the data
+names(fa_data) <- c("DO_ID", "F1", "F2")
+head(fa_data)
+
+write_csv(fa_data, "Results/factors_2.csv")
+write_csv(fa_data, "../../../Reports/Supplementary Material/sup_table_factors2.csv")
+
+```

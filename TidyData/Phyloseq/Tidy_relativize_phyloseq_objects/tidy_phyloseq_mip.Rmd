@@ -1,0 +1,134 @@
+---
+title: "tidy_phyloseq"
+author: "Anna Goodman"
+date: "2025-04-29"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+#load data:
+```{r}
+sample_metadata <- read_csv("../../Metadata/Results/per_sample_metadata_mip.csv")
+
+ps16S <- read_rds("../../../Analysis/Microbial Communities/Assign_traits_16S/Results/ps16S_faprotax_mip.rds")
+psITS <- read_rds("../../../Analysis/Microbial Communities/Assign_traits_ITS/Results/psITS_remove_8_reads_fungaltraits_mip.rds")
+```
+
+# Write function to tidy and relativize phyloseq objects, preparing them for PERMANOVAs and NMDSs
+```{r}
+
+prepare_phyloseq_object = function (ps_object, gene_target, type, nucleic_acid_type) {
+  
+  ps_object <- subset_samples(ps_object, core_top_depth_cm >= 0) # exclude controls, leaving out any reads where core_top_depth is NA
+  ps_object <- prune_taxa(taxa_sums(ps_object) > 0, ps_object) #remove taxa that aren't in the dataset anymore (were associated with controls only)
+ 
+  if (nucleic_acid_type == "DNA") {
+    ps_object <- subset_samples(ps_object, nucleic_acid =="DNA")
+    ps_object <- prune_taxa(taxa_sums(ps_object) > 0, ps_object) #remove taxa that aren't in the dataset anymore (only appeared in RNA samples)
+  } else if (nucleic_acid_type == "RNA") {
+    ps_object <- subset_samples(ps_object, nucleic_acid =="RNA")
+    ps_object <- prune_taxa(taxa_sums(ps_object) > 0, ps_object) #remove taxa that aren't in the dataset anymore (only appeared in DNA samples)
+  } else if (nucleic_acid_type == "both") {
+    # do not subset samples
+  }
+  
+  if (type == "traits") { # select only a single trait (primary lifestyle for ITS or "combined traits" for 16S), plus Genus and species
+
+    tax_table <- tax_table(ps_object) # extract the taxonomy table from the phyloseq object
+    tax_table_select <- data.frame(tax_table) # store this as a dataframe
+    
+    if (gene_target == "ITS") {
+      tax_table_select <- select(tax_table_select,
+                           Primary_lifestyle,
+                           Genus,
+                           Species) # trim the data in the taxonomy table to only Primary Lifestyle, Genus, and species
+    } else if (gene_target == "16S") {
+      tax_table_select <- select(tax_table_select,
+                           combined_traits,
+                           Genus,
+                           Species) # trim the data in the taxonomy table to only "combined traits", Genus, and species
+    }
+    tax_table_select <- as.matrix(tax_table_select) # convert the trimmed, taxonomy table-derived dataframe to a matrix
+    row.names(tax_table_select) <- row.names(tax_table) # pull the rownames from the un-trimmed version of the taxonomy table and add them to the trimmed matrix version of the taxonomy table
+    tax_table_select <- tax_table(tax_table_select) # convert the taxonomy table-derived matrix back into a taxonomy table
+    tax_table(ps_object) <- tax_table_select # replace the original taxonomy table in the phyloseq object with the trimmed version
+
+    if (gene_target == "ITS") {
+        ps_object <- tax_glom(ps_object, taxrank = "Primary_lifestyle", NArm = FALSE) # agglomerate taxa to Primary lifestyle
+
+    } else if (gene_target == "16S") {
+        ps_object <- tax_glom(ps_object, taxrank = "combined_traits", NArm = FALSE) # agglomerate taxa to "combined traits"
+    }
+
+  } else if (type == "ASVs") {
+   # no taxonomy trimming/agglomeration necessary 
+ }
+
+  ps_relative <- transform_sample_counts(ps_object, function(x){x / sum(x)}) #normalize data to relative abundance, rather than rarefying
+
+return(ps_relative)
+}
+
+```
+
+# generate and save relativized, tidy phyloseq objects
+
+```{r}
+# 16S ASVs 
+ps16S_relative = prepare_phyloseq_object(ps16S, "16S", "ASVs", "both")
+write_rds(ps16S_relative, "Results/ps16S_relative_mip.rds")
+
+# ITS ASVs
+psITS_relative = prepare_phyloseq_object(psITS, "ITS", "ASVs", "both")
+write_rds(psITS_relative, "Results/psITS_relative_mip.rds")
+
+# 16S traits
+ps16S_traits_relative = prepare_phyloseq_object(ps16S, "16S", "traits", "both")
+write_rds(ps16S_traits_relative, "Results/ps16S_traits_relative_mip.rds")
+
+# ITS traits
+psITS_traits_relative = prepare_phyloseq_object(psITS, "ITS", "traits", "both")
+write_rds(psITS_traits_relative, "Results/psITS_traits_relative_mip.rds")
+```
+
+# also generate versions pre-filtered for DNA or RNA
+```{r}
+# 16S ASVs 
+ps16S_relative_DNA = prepare_phyloseq_object(ps16S, "16S", "ASVs", "DNA")
+write_rds(ps16S_relative_DNA, "Results/ps16S_relative_DNA_mip.rds")
+
+# ITS ASVs
+psITS_relative_DNA = prepare_phyloseq_object(psITS, "ITS", "ASVs", "DNA")
+write_rds(psITS_relative_DNA, "Results/psITS_relative_DNA_mip.rds")
+
+# 16S traits
+ps16S_traits_relative_DNA = prepare_phyloseq_object(ps16S, "16S", "traits", "DNA")
+write_rds(ps16S_traits_relative_DNA, "Results/ps16S_traits_relative_DNA_mip.rds")
+
+# ITS traits
+psITS_traits_relative_DNA = prepare_phyloseq_object(psITS, "ITS", "traits", "DNA")
+write_rds(psITS_traits_relative_DNA, "Results/psITS_traits_relative_DNA_mip.rds")
+```
+
+```{r}
+# 16S ASVs 
+ps16S_relative_RNA = prepare_phyloseq_object(ps16S, "16S", "ASVs", "RNA")
+write_rds(ps16S_relative_RNA, "Results/ps16S_relative_RNA_mip.rds")
+
+# ITS ASVs
+psITS_relative_RNA = prepare_phyloseq_object(psITS, "ITS", "ASVs", "RNA")
+write_rds(psITS_relative_RNA, "Results/psITS_relative_RNA_mip.rds")
+
+# 16S traits
+ps16S_traits_relative_RNA = prepare_phyloseq_object(ps16S, "16S", "traits", "RNA")
+write_rds(ps16S_traits_relative_RNA, "Results/ps16S_traits_relative_RNA_mip.rds")
+
+# ITS traits
+psITS_traits_relative_RNA = prepare_phyloseq_object(psITS, "ITS", "traits", "RNA")
+write_rds(psITS_traits_relative_RNA, "Results/psITS_traits_relative_RNA_mip.rds")
+```
+

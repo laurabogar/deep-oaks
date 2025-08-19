@@ -1,0 +1,158 @@
+---
+title: "DO_Tidy_Extractions_Used_For_Sequencing"
+author: "Glade Bogar"
+date: "2024-09-25"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+#Load required packages:
+```{r}
+library(tidyverse)
+```
+
+#Load required data:
+```{r}
+extractions <- read_csv("../../Data/Transcribed data/RNA-DNA Extractions and Lib prep planning/Extractions Aliquoted For Library Prep.csv")
+```
+
+#Make a soil sample ID constent with other data:
+```{r}
+extractions <- extractions %>%
+  mutate(new_column = "DO")
+
+extractions <- extractions %>%
+  unite('DO_ID', 'new_column', 'Tree', 'Depth cm', sep="_")
+```
+
+#Rename variable names:
+```{r}
+extractions <- extractions %>%
+  rename(extraction_date = `Extraction Date`)
+extractions <- extractions %>%
+  rename(date_collected = `Date Collected`)
+extractions <- extractions %>%
+  rename(starting_depth_cm = `Starting depth (cm)`)
+extractions <- extractions %>%
+  rename(RNA_ng_per_uL = `RNA ng/uL`)
+extractions <- extractions %>%
+  rename(DNA_ng_per_uL = `DNA ng/uL`)
+extractions <- extractions %>%
+  rename(twenty_uL_RNA_dilution_2_ng_per_uL = `20uL RNA DILUTION 2ng/uL`)
+extractions <- extractions %>%
+  rename(twenty_uL_DNA_dilution_2_ng_per_uL = `20uL DNA Dilution 2ng/uL`)
+extractions <- extractions %>%
+  rename(soil_mass_g_extraction = `Soil Mass (g)`)
+extractions <- extractions %>%
+  rename(batch_letter = `Letter in Batch`)
+extractions <- extractions %>%
+  rename(DO_RNA_Box_ID = `DO RNA Box ID`)
+extractions <- extractions %>%
+  rename(DO_DNA_Box_ID = `DO DNA Box ID`)
+extractions <- extractions %>%
+  rename(RNA_PCR_water = `RNA PCR Water to be Added?`)
+extractions <- extractions %>%
+  rename(DNA_PCR_water = `DNA PCR Water to be added?`)
+extractions <- extractions %>%
+  rename(cDNA_conc_ng_per_uL = `cDNA conc. ng/uL`)
+extractions <- extractions %>%
+  rename(uL_cDNA_input = `uL of cDNA to input`)
+extractions <- extractions %>%
+  rename(cDNA_final_input_ng_per_uL = `Final Input ng`)
+```
+
+#Complex dataset. Sure there must be a smart way to deal with this, but instead I'm going to split and re-join to legthen data.
+
+#write .csv jut for copy/paste:
+```{r}
+write_csv(extractions, "extractions_temp.csv")
+```
+
+#Select general extraction variables:
+```{r}
+extractions_general <- select(extractions,
+                              DO_ID,
+                              extraction_date,
+                              date_collected,
+                              starting_depth_cm,
+                              soil_mass_g_extraction,
+                              batch_letter,
+                              notes_RNA_DNA,
+                              )
+```
+
+
+#Select DNA extraction variables:
+```{r}
+extractions_DNA <- select(extractions,
+                          DO_ID,
+                          DNA_ng_per_uL,
+                          twenty_uL_DNA_dilution_2_ng_per_uL,
+                          DO_DNA_Box_ID,
+                          DNA_PCR_water)
+```
+
+#Select RNA extraction variables:
+```{r}
+extractions_RNA <- select(extractions,
+                          DO_ID,
+                          RNA_ng_per_uL,
+                          twenty_uL_RNA_dilution_2_ng_per_uL,
+                          DO_RNA_Box_ID,
+                          RNA_PCR_water,
+                          cDNA_conc_ng_per_uL,
+                          uL_cDNA_input,
+                          cDNA_final_input_ng_per_uL)
+```
+
+#Rename variables for join:
+```{r}
+extractions_general <- rename(extractions_general, notes_extraction = "notes_RNA_DNA")
+
+extractions_DNA <- rename(extractions_DNA, Extraction_ID = "DO_DNA_Box_ID")
+
+extractions_RNA <- rename(extractions_RNA, Extraction_ID = "DO_RNA_Box_ID")
+```
+
+#Left join general extraction variables to each DNA, RNA sheets:
+```{r}
+extractions_DNA <- left_join(extractions_general, extractions_DNA)
+extractions_RNA <- left_join(extractions_general, extractions_RNA)
+```
+
+
+#Bind rows to make joined datasheet by individual DNA/RNA extraction
+```{r}
+extractions_tidy <- bind_rows(extractions_DNA, extractions_RNA)
+```
+
+#export tidy data:
+```{r}
+write_csv(extractions_tidy, "Results/nucleic_acid_extractions_for_library_prep_tidy_mip.csv")
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

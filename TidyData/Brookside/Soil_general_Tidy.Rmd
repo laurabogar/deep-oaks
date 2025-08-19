@@ -1,0 +1,98 @@
+---
+title: "Soil_general_tidy"
+output: html_document
+date: "2024-09-11"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#if needed, install tidyverse:
+```{r}
+#install.packages("tidyverse")
+```
+#load and check tidyverse package version:
+```{r}
+library(tidyverse)
+packageVersion('tidyverse')
+```
+#update tidyverse (if not just installed):
+```{r}
+tidyverse_update()
+```
+#import data, saved as .csv files: skipping the first 7 rows since it's not necessarry
+```{r}
+Soil_general <- read_csv("../../Data/Brookside/SOILd_90403_083024.csv", skip = 7)
+
+```
+
+#extract, rename :
+```{r}
+Soil_general_tidy <- Soil_general
+
+
+```
+#Unite your sample titles:
+```{r}
+Soil_general_tidy_merged <- Soil_general_tidy %>%
+  unite('Sample_id', 'Sample Location', `Sample Description #1`, `Sample Description #2`, sep="_")
+
+```
+
+#rename example%, to an example_percent format
+```{r}
+Soil_general_tidy_merged <- rename(Soil_general_tidy_merged, "Total_Exchange_Capacity_meq_per_100_g" = "Total Exchange Capacity (meq/100 g)")
+Soil_general_tidy_merged <- rename(Soil_general_tidy_merged, "organic_matter_percent" = "Organic Matter (%)")
+Soil_general_tidy_merged <- rename(Soil_general_tidy_merged, "Estimated_Nitrogen_Release_number_N_per_acre" = "Estimated Nitrogen Release (# N/acre)")
+Soil_general_tidy_merged <- rename(Soil_general_tidy_merged, "S_ppm" = "S* (ppm)")
+Soil_general_tidy_merged <- rename(Soil_general_tidy_merged, "P_mg_per_kg" = "P* (mg/kg)")
+Soil_general_tidy_merged <- rename(Soil_general_tidy_merged, "Ca_mg_per_kg" = "Ca* (mg/kg)")
+Soil_general_tidy_merged <- rename(Soil_general_tidy_merged, "Mg_mg_per_kg" = "Mg* (mg/kg)")
+Soil_general_tidy_merged <- rename(Soil_general_tidy_merged, "K_mg_per_kg" = "K* (mg/kg)")
+Soil_general_tidy_merged <- rename(Soil_general_tidy_merged, "Na_mg_per_kg" = "Na* (mg/kg)")
+Soil_general_tidy_merged <- rename(Soil_general_tidy_merged, "Ca_percent" = "Ca** (%)")
+Soil_general_tidy_merged <- rename(Soil_general_tidy_merged, "Mg_percent" = "Mg** (%)")
+Soil_general_tidy_merged <- rename(Soil_general_tidy_merged, "K_percent" = "K** (%)")
+Soil_general_tidy_merged <- rename(Soil_general_tidy_merged, "Na_percent" = "Na** (%)")
+Soil_general_tidy_merged <- rename(Soil_general_tidy_merged, "other_bases_percent" = "Other Bases** (%)")
+Soil_general_tidy_merged <- rename(Soil_general_tidy_merged, "H_percent" = "H** (%)")
+Soil_general_tidy_merged <- rename(Soil_general_tidy_merged, "B_mg_per_kg" = "B* (mg/kg)")
+Soil_general_tidy_merged <- rename(Soil_general_tidy_merged, "Fe_mg_per_kg" = "Fe* (mg/kg)")
+Soil_general_tidy_merged <- rename(Soil_general_tidy_merged, "Mn_mg_per_kg" = "Mn* (mg/kg)")
+Soil_general_tidy_merged <- rename(Soil_general_tidy_merged, "Cu_mg_per_kg" = "Cu* (mg/kg)")
+Soil_general_tidy_merged <- rename(Soil_general_tidy_merged, "Zn_mg_per_kg" = "Zn* (mg/kg)")
+Soil_general_tidy_merged <- rename(Soil_general_tidy_merged, "Al_mg_per_kg" = "Al* (mg/kg)")
+Soil_general_tidy_merged <- rename(Soil_general_tidy_merged, "NO3-N_ppm" = "NO3-N (ppm)")
+Soil_general_tidy_merged <- rename(Soil_general_tidy_merged, "NH4-N_ppm" = "NH4-N (ppm)")
+Soil_general_tidy_merged <- rename(Soil_general_tidy_merged, "Bray_I_P_ppm" = "Bray I P (ppm)")
+```
+#change variables that are not supposed to be characters into doubles
+```{r}
+Soil_general_tidy_merged$B_mg_per_kg <- as.numeric(Soil_general_tidy_merged$B_mg_per_kg)
+Soil_general_tidy_merged$`NO3-N_ppm` <- as.numeric(Soil_general_tidy_merged$`NO3-N_ppm`)
+Soil_general_tidy_merged$`NH4-N_ppm` <- as.numeric(Soil_general_tidy_merged$`NH4-N_ppm`)
+```
+#replace NAs with 0
+```{r}
+
+   Soil_general_tidy_0 <- mutate_all(Soil_general_tidy_merged, ~ifelse(is.na(.), 0, .))
+```
+
+#remove Lab Number or other unwanted columns
+
+```{r}
+Soil_general_tidy_0 <- select(Soil_general_tidy_0, -"Lab Number")
+```
+
+#remove empty rows
+```{r}
+Soil_general_tidy_0 <- filter(Soil_general_tidy_0, Soil_general_tidy_0$Sample_id != "NA_NA_NA")
+```
+
+
+#export cleaned data:
+```{r}
+write_csv(Soil_general_tidy_0, "Results/Soil_general_Tidy_mip.csv")
+```
+

@@ -1,0 +1,161 @@
+---
+title: "Supplementary Figure 3"
+author: "Anna Goodman"
+date: "2024-12-18"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# load packages
+```{r}
+library(tidyverse)
+library(ggpubr)
+library(cowplot)
+```
+
+# load data
+```{r}
+# load in the metadata with PLFA data for all 36 samples
+metadata36 <- read.csv("../../TidyData/Metadata/Results/per_sample_metadata_mip.csv")
+```
+
+# make depth discrete, not continuous
+```{r}
+discrete.depth = mutate(metadata36, core_bottom_depth_cm = as.character(core_bottom_depth_cm)) # make a dataframe in which depth is a discrete variable
+discrete.depth$core_bottom_depth_cm <- factor(discrete.depth$core_bottom_depth_cm, levels=c("7.5", "15", "22.5", "30", "37.5", "45")) # put the levels of depth in order
+```
+
+# set font size
+```{r}
+fontSizeControl = theme(text = element_text(size = 7))
+```
+
+
+# make boxplot of total living microbial biomass
+```{r}
+mic = ggplot(discrete.depth, aes(x = core_bottom_depth_cm, y = PLFA_Total_Living_Microbial_Biomass_ng_g, fill = Tree_Health)) +
+  geom_boxplot() +
+  facet_wrap(~Tree_Health) + # Group the boxes by treatment B
+  labs(x = "Core bottom depth (cm)", y = "Total microbial biomass (ng PLFA/g soil)") +
+  theme_minimal()  + scale_fill_manual(name = "Tree mortality", values = c("darkblue", "deeppink")) + # colorblind-friendly colors 
+  fontSizeControl
+```
+
+# make boxplot of total living fungal biomass
+```{r}
+discrete.depth = mutate(metadata36, core_bottom_depth_cm = as.character(core_bottom_depth_cm))
+discrete.depth$core_bottom_depth_cm <- factor(discrete.depth$core_bottom_depth_cm, levels=c("7.5", "15", "22.5", "30", "37.5", "45"))
+fun = ggplot(discrete.depth, aes(x = core_bottom_depth_cm, y = PLFA_Total_Fungi_ng_g, fill = Tree_Health)) +
+  geom_boxplot() +
+  facet_wrap(~Tree_Health) + # Group the boxes by treatment B
+  labs(x = "Core bottom depth (cm)", y = "Total fungal biomass (ng PLFA/g soil)") +
+  theme_minimal()  + scale_fill_manual(name = "Tree mortality", values = c("darkblue", "deeppink"))+ # colorblind-friendly colors
+  fontSizeControl
+```
+
+# make boxplot of total living bacterial biomass
+```{r}
+discrete.depth = mutate(metadata36, core_bottom_depth_cm = as.character(core_bottom_depth_cm))
+discrete.depth$core_bottom_depth_cm <- factor(discrete.depth$core_bottom_depth_cm, levels=c("7.5", "15", "22.5", "30", "37.5", "45"))
+bac = ggplot(discrete.depth, aes(x = core_bottom_depth_cm, y = PLFA_Total_Bacteria_ng_g, fill = Tree_Health)) +
+  geom_boxplot() +
+  facet_wrap(~Tree_Health) + # Group the boxes by treatment B
+  labs(x = "Core bottom depth (cm)", y = "Total bacterial biomass (ng PLFA/g soil)") +
+  theme_minimal() + scale_fill_manual(name = "Tree mortality", values = c("darkblue", "deeppink"))+ # colorblind-friendly colors
+  fontSizeControl
+```
+
+# combine boxplots as pannels of a single figure
+```{r}
+supFig3 = ggpubr::ggarrange(
+  mic, fun, bac, # list of boxplots to be panels
+  labels = c("A", "B", "C"), # labels for each panel
+  font.label = list(size = 10, color = "black", face = "bold", family = NULL),
+  widths = c(5,5),
+  common.legend = TRUE, # common legend for all panels
+  legend = "top", # legend displayed above all panels
+  align = "hv", # align panels horizontally and vertically
+  nrow = 1 # all panels arranged in a single row
+)
+supFig3
+```
+```{r}
+  ggsave(plot = supFig3, filename = ("Results/sup_fig_3_biomass.pdf"), device = "pdf", height = 4.8, width = 11, units = "in")
+  ggsave(plot = supFig3, filename = ("../../Reports/Supplementary Material/Figures/sup_fig_3_biomass.pdf"), device = "pdf", height = 4.8, width = 11, units = "in")
+```
+
+
+
+### export:
+```{r}
+# set size and resolution parameters
+
+# requirements: 1000 pp1 (pixels per inch), 140 mm wide
+# 1 inch = 0.0393701 mm, 1 mm = 25.4 inches
+
+ppi = 1000
+
+w_mm = 190
+hw_ratio = 4/11 # arbitrary
+
+h_mm = w_mm*hw_ratio
+w_i = w_mm/25.4
+h_i = h_mm/25.4
+```
+
+```{r}
+# create the jpg figure file in this results folder and in the reports folder
+
+jpeg("Results/Supplementary Material/Figures/SupFig3.jpg", width = w_i * ppi, height = h_i * ppi, res = ppi)
+jpeg("../../Reports/Supplementary Material/Figures/SupFig3.jpg", width = w_i * ppi, height = h_i * ppi, res = ppi)
+
+
+supFig3
+dev.off()
+```
+
+```{r}
+# create the png figure file in this results folder and in the reports folder
+
+png("Results/Supplementary Material/Figures/SupFig3.png", width = w_i * ppi, height = h_i * ppi, res = ppi)
+png("../../Reports/Supplementary Material/Figures/SupFig3.png", width = w_i * ppi, height = h_i * ppi, res = ppi)
+
+
+supFig3
+dev.off()
+```
+
+# add margins
+```{r}
+supfig3_margins = ggdraw() + draw_plot(supFig3, 
+                                       x = 0.05, # position figure to the right
+                                       y = 0.05, # positition figure near the bottom
+                                       width = 0.9,
+                                       height = 0.9)
+supfig3_margins
+```
+# add caption
+```{r}
+caption = ggdraw() +
+  draw_label("Supplementary Figure 3. Box and whisker plots showing the distribution of fungal (B), bacterial (C), and total (A) microbial biomass across discrete soil depths.
+  Box boundaries are the first and third quartiles, and whiskers extend to extreme values within 1.5 x the interquartile range. Horizontal lines represent the median value.
+  n = 3 within each box.", size = 7, hjust = 0.5, vjust = 1)
+
+supfig3_caption = plot_grid(caption, supfig3_margins,
+                            ncol = 1,
+                            rel_heights = c(0.2, 1))
+
+supfig3_caption
+```
+
+# save figure
+```{r}
+  ggsave(plot = supfig3_caption, filename = ("Results/sup_fig_3_biomass_formatted.pdf"), device = "pdf", height = 4.8, width = 11, units = "in")
+  ggsave(plot = supfig3_caption, filename = ("../../Reports/Supplementary Material/Figures/sup_fig_3_biomass_formatted.pdf"), device = "pdf", height = 4.8, width = 11, units = "in")
+```
+
+

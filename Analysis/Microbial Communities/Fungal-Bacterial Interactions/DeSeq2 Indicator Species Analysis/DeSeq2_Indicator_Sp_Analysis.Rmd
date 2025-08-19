@@ -1,0 +1,561 @@
+---
+title: "DeSeq2 Indicator Species Analysis"
+author: "Anna Goodman"
+date: "2025-06-16"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+#load required packages:
+```{r}
+library("phyloseq")
+library("vegan")
+library("tidyverse")
+library("DESeq2")
+```
+
+#load required data:
+```{r}
+ps16S <- read_rds("../../Assign_traits_16S/Results/ps16S_faprotax_mip.rds")
+psITS <- read_rds("../../Assign_traits_ITS/Results/psITS_remove_8_reads_fungaltraits_mip.rds")
+metadata <- read_csv("../../../../TidyData/Metadata/Results/per_sample_metadata_mip.csv")
+```
+
+-------------------------------------------------------------------------------
+# Transform ITS phyloseq object to hold imputed fungal biomass
+## tidy phyloseq object
+
+###read depths:
+```{r}
+sort(sample_sums(psITS))
+```
+
+###subset exclude controls:
+```{r}
+psITS
+psITS <- subset_samples(psITS, core_top_depth_cm >= 0)
+psITS
+```
+
+###select RNA-only:
+```{r}
+psITS
+psITS_RNA <- subset_samples(psITS, nucleic_acid == "RNA")
+psITS_RNA
+```
+
+###remove taxa that aren't in the dataset anymore:
+```{r}
+psITS_RNA
+psITS_RNA <- prune_taxa(taxa_sums(psITS_RNA) > 0, psITS_RNA)
+psITS_RNA
+```
+
+###get sample data:
+```{r}
+psITS_RNA_sample_data <- data.frame(sample_data(psITS_RNA))
+```
+
+##Impute fungal biomass as per-sample fungal PLFA x per-sample RNA based relative abundance of a given group of fungi
+
+###select PLFA data:
+```{r}
+PLFA_total_fungi <- select(psITS_RNA_sample_data, PLFA_Total_Fungi_ng_g)
+PLFA_total_fungi <- PLFA_total_fungi$PLFA_Total_Fungi_ng_g
+```
+
+###transform to relative abundances:
+```{r}
+psITS_RNA_relative <- transform_sample_counts(psITS_RNA, function(x){x / sum(x)})
+```
+
+###pre-transform sample sums:
+```{r}
+sample_sums(psITS_RNA_relative)
+```
+
+###transform [otu?] table:
+```{r}
+# Divide the counts in sample n by size_factors[n] and save in matrix `mat`
+mat <- sweep(otu_table(psITS_RNA_relative), 1 + taxa_are_rows(psITS_RNA_relative), PLFA_total_fungi, FUN = `*`)
+
+# Make a new phyloseq object with the transformed counts
+psITS_RNA_relative_PLFAcorr <- psITS_RNA_relative
+otu_table(psITS_RNA_relative_PLFAcorr) <- otu_table(mat, taxa_are_rows = taxa_are_rows(psITS_RNA_relative))
+```
+
+###post-transform sample sums:
+```{r}
+sample_sums(psITS_RNA_relative_PLFAcorr)
+```
+
+### Sums should match total fungal PLFA numbers:
+```{r}
+PLFA_total_fungi
+```
+#### worked.
+
+
+## Re-calculate per-sample fungal functional traits for append to 16S.
+
+### List 'taxonomic' ranks:
+```{r}
+rank_names(psITS_RNA_relative_PLFAcorr)
+```
+
+### extract taxa table
+```{r}
+# Extract abundance matrix from the phyloseq object
+TAXA1 <- as(tax_table(psITS_RNA_relative_PLFAcorr), "matrix")
+# Coerce to data.frame
+psITS_fungaltraits_taxa <- as.data.frame(TAXA1)
+```
+
+### Extract OTU table
+```{r}
+# Extract abundance matrix from the phyloseq object
+OTU1 <- as(otu_table(psITS_RNA_relative_PLFAcorr), "matrix")
+# Coerce to data.frame
+psITS_fungaltraits_OTU <- as.data.frame(OTU1)
+```
+
+### Extract sample names
+```{r}
+samplenames <- as.data.frame(sample_names(psITS_RNA_relative_PLFAcorr))
+```
+
+#### Vandepol split genus Mortierella in 2020 - manually assigning genus mortierella's functions to what are now genera actinomortierella, gryganskiella, linnemannia, lunasporangiospora, necromortierella, podila.
+#### Note this in the methods.
+
+### Add samplenames to first column of OTU_Table:
+```{r}
+psITS_fungaltraits_OTU <- rownames_to_column(psITS_fungaltraits_OTU, var = "DO_sample_names")
+```
+
+### 1:Primary_lifestyle
+
+#replace entire first row of OTU_table with Primary_lifestyle column of Taxa_table.csv, including heading.
+```{r}
+Primary_lifestyle_transposed <- t(psITS_fungaltraits_taxa$Primary_lifestyle)
+Primary_lifestyle_transposed <- as.data.frame(Primary_lifestyle_transposed)
+column_title <- as.data.frame(c("Primary_lifestyle"))
+Primary_lifestyle_transposed <- bind_cols(column_title, Primary_lifestyle_transposed)
+colnames(Primary_lifestyle_transposed) <- colnames(psITS_fungaltraits_OTU)
+psITS_fungaltraits_OTU <- data.frame(lapply(psITS_fungaltraits_OTU, as.character), stringsAsFactors = FALSE)
+Primary_lifestyle <- bind_rows(Primary_lifestyle_transposed, psITS_fungaltraits_OTU)
+```
+
+#transpose, fix column names, remove rownames (ASVs), re-code as numeric:
+```{r}
+Primary_lifestyle <- t(Primary_lifestyle)
+
+colnames(Primary_lifestyle) <- as.character(Primary_lifestyle[1, ])
+Primary_lifestyle <- as.data.frame(Primary_lifestyle[-1, ])
+rownames(Primary_lifestyle) <- NULL
+
+recode_numeric <- select(Primary_lifestyle, -Primary_lifestyle)
+recode_numeric <- data.frame(lapply(recode_numeric, as.numeric))
+
+Primary_lifestyle <- bind_cols(Primary_lifestyle$Primary_lifestyle, recode_numeric)
+Primary_lifestyle <- dplyr::rename(Primary_lifestyle, Primary_lifestyle = "...1")
+```
+
+#collapse all duplicate values:
+```{r}
+metadata_Primary_lifestyle_grouped <- Primary_lifestyle %>%
+  group_by(Primary_lifestyle) %>%
+  summarise(across(everything(), sum))
+```
+
+#Transpose, edit for later leftjoin:
+```{r}
+metadata_Primary_lifestyle_grouped_t <- as.data.frame(t(metadata_Primary_lifestyle_grouped))
+metadata_Primary_lifestyle_grouped_t <- rownames_to_column(metadata_Primary_lifestyle_grouped_t, var = "Sequencing_ID")
+```
+
+#check sums:
+```{r}
+checksums <- metadata_Primary_lifestyle_grouped_t
+checksums <- checksums[-1,-1]
+checksums <- mutate(checksums, across(everything(), as.numeric))
+checksums <- mutate(checksums, traitsums = rowSums(across(everything())))
+
+checksums$traitsums
+```
+
+#export collapsed metadata:
+```{r}
+write_csv(metadata_Primary_lifestyle_grouped_t, "Results/imputed_biomass_of_fungal_guilds_by_sample_mip.csv", col_names = FALSE)
+```
+-------------------------------------------------------------------------------
+
+#add per-sample imputed biomass of ECM (ng/g) to ps16S Metadata
+
+###read depths:
+```{r}
+sort(sample_sums(ps16S))
+```
+
+###subset exclude controls:
+```{r}
+ps16S
+ps16S <- subset_samples(ps16S, core_top_depth_cm >= 0)
+ps16S
+```
+
+###select RNA-only:
+```{r}
+ps16S
+ps16S_RNA <- subset_samples(ps16S, nucleic_acid == "RNA")
+ps16S_RNA
+```
+
+###remove taxa that aren't in the dataset anymore:
+```{r}
+ps16S_RNA
+ps16S_RNA <- prune_taxa(taxa_sums(ps16S_RNA) > 0, ps16S_RNA)
+ps16S_RNA
+```
+
+###get sample data:
+```{r}
+ps16S_RNA_sample_data <- data.frame(sample_data(ps16S_RNA))
+```
+
+###load 'fungal functions (created above):
+```{r}
+fungal_functions <- read_csv("Results/imputed_biomass_of_fungal_guilds_by_sample_mip.csv")
+```
+
+###extract, join data:
+```{r}
+psITS_metadata <- data.frame(sample_data(psITS_RNA_relative_PLFAcorr))
+psITS_metadata <- rownames_to_column(psITS_metadata, var = "SeqID")
+fungal_functions <- dplyr::rename(fungal_functions, SeqID = "Primary_lifestyle")
+
+psITS_metadata <- left_join(psITS_metadata, fungal_functions)
+
+ps16S_metadata <- data.frame(sample_data(ps16S_RNA))
+ps16S_metadata <- rownames_to_column(ps16S_metadata, var = "SeqID")
+
+psITS_metadata <- select(psITS_metadata, nucleic_acid, DO_ID, ectomycorrhizal)
+
+ps16S_metadata$DO_Name <- str_c(ps16S_metadata$DO_ID, ps16S_metadata$nucleic_acid, sep = "_")
+psITS_metadata$DO_Name <- str_c(psITS_metadata$DO_ID, psITS_metadata$nucleic_acid, sep = "_")
+psITS_metadata <- select(psITS_metadata, DO_Name, ectomycorrhizal)
+
+ps16S_metadata <- left_join(ps16S_metadata, psITS_metadata, by = "DO_Name")
+
+ps16S_metadata <- column_to_rownames(ps16S_metadata, var = "SeqID")
+
+sample_data(ps16S_RNA) <- sample_data(ps16S_metadata)
+
+ps16S_RNA
+```
+
+```{r}
+#anna debug
+ps16S_RNA_mip_biomass = ps16S_RNA
+
+```
+------------------------------------------------------------------------------
+#ECM ng/g-associated 16S ASVs, RNA-based, with a 3-tree filter
+
+###designate ASVs:
+```{r}
+ps16S_ASVs_RNA <- ps16S_RNA
+```
+
+###To start, filter for asvs seen in at least 1 time under each of 3 trees:
+```{r}
+ps16S_ASVs_RNA_for_filter <- ps16S_ASVs_RNA
+
+ps16S_ASVs_RNA_for_filter <- merge_samples(ps16S_ASVs_RNA_for_filter, "Tree")
+ps16S_ASVs_RNA_for_filter
+
+ps16S_ASVs_RNA_abundant <- filter_taxa(ps16S_ASVs_RNA_for_filter, function(x) sum(x > 1) >= 3, TRUE)
+ps16S_ASVs_RNA_abundant
+```
+
+##How much of the community do ASVs which appear beneath 3 trees represent?
+
+###First, relativize phyloseq:
+```{r}
+ps16S_ASVs_RNA_relative <- transform_sample_counts(ps16S_ASVs_RNA, function(x){(x / sum(x))})
+```
+
+###Next, get names of subsetted taxa:
+```{r}
+ps16S_ASVs_RNA_abundant_names <- names(taxa_sums(ps16S_ASVs_RNA_abundant))
+```
+
+###Subset relativized dataset:
+```{r}
+ps16S_ASVs_RNA_relative
+ps16S_ASVs_RNA_relative_abundant <- prune_taxa(ps16S_ASVs_RNA_abundant_names, ps16S_ASVs_RNA_relative)
+ps16S_ASVs_RNA_relative_abundant
+```
+
+###Bar graph:
+```{r}
+plot_bar(ps16S_ASVs_RNA_relative_abundant, x = "DO_ID", y = "Abundance", fill = "Phylum")
+```
+
+### 60+ %. fewer than with a 2 tree filter, but still majority.
+
+###Subset un-relativized dataset for analysis:
+```{r}
+ps16S_ASVs_RNA_abundant
+ps16S_ASVs_RNA_abundant_onepercent <- prune_taxa(ps16S_ASVs_RNA_abundant_names, ps16S_ASVs_RNA)
+ps16S_ASVs_RNA_abundant_onepercent
+
+sort(sample_sums(ps16S_ASVs_RNA_abundant_onepercent))
+```
+
+###deseq2 does not run on relativized data. rarefy to common depth, post-filtering:
+```{r}
+sort(sample_sums(ps16S_ASVs_RNA_abundant_onepercent))
+
+ps16S_ASVs_RNA_abundant_onepercent <- rarefy_even_depth(ps16S_ASVs_RNA_abundant_onepercent, sample.size = 22907, rngseed = 12, replace = TRUE, trimOTUs = TRUE)
+
+sort(sample_sums(ps16S_ASVs_RNA_abundant_onepercent))
+```
+
+
+##Test imputed biomass of ECM (ng/g) as a numeric predictor for bacterial ASV read abundance.
+
+###Filter for only samples with %ECM:
+```{r}
+ps16S_ASVs_RNA_abundant_onepercent
+ps16S_ASVs_RNA_abundant_onepercent <- subset_samples(ps16S_ASVs_RNA_abundant_onepercent, ectomycorrhizal != "NA")
+ps16S_ASVs_RNA_abundant_onepercent
+```
+
+###scale and center ECM - to interpret as logfold change per 100 ng/g ECM increments:
+```{r}
+ps16S_ASVs_RNA_abundant_onepercent_sample_data <- data.frame(sample_data(ps16S_ASVs_RNA_abundant_onepercent))
+
+ps16S_ASVs_RNA_abundant_onepercent_sample_data <- mutate(ps16S_ASVs_RNA_abundant_onepercent_sample_data, ECM_scaled = (((ectomycorrhizal) - mean(ectomycorrhizal))/100))
+
+sample_data(ps16S_ASVs_RNA_abundant_onepercent) <- ps16S_ASVs_RNA_abundant_onepercent_sample_data
+
+ps16S_ASVs_RNA_abundant_onepercent
+```
+
+###use deseq2 to find microbes that are differentially abundant with greater % ECM:
+```{r}
+DESeq_ECM <- phyloseq_to_deseq2(physeq = ps16S_ASVs_RNA_abundant_onepercent, design = ~ECM_scaled)
+DESeq_ECM <- DESeq(DESeq_ECM, test = "Wald", fitType = "parametric")
+```
+
+###DESeq2 Results:
+```{r}
+DESeq_ECM_Results <- results(DESeq_ECM, cooksCutoff = FALSE)
+alpha <- 0.05
+sigtab <- DESeq_ECM_Results[which(DESeq_ECM_Results$padj < alpha), ]
+sigtab <- cbind(as(sigtab, "data.frame"), as(tax_table(ps16S_ASVs_RNA_abundant_onepercent)[rownames(sigtab), ], "matrix"))
+dim(sigtab)
+
+write_csv(sigtab, "Results/DESeq2_16S_ASVs_RNA_ECM_3trees_mip.csv")
+```
+
+###Visualize
+```{r}
+library("ggplot2")
+theme_set(theme_bw())
+#scale_fill_discrete <- function(palname = "Set1", ...) {
+#    scale_fill_brewer(palette = palname, ...)
+#}
+# Phylum order
+x = tapply(sigtab$log2FoldChange, sigtab$Phylum, function(x) max(x))
+x = sort(x, TRUE)
+sigtab$Phylum = factor(as.character(sigtab$Phylum), levels=names(x))
+# Genus order
+x = tapply(sigtab$log2FoldChange, sigtab$Genus, function(x) max(x))
+x = sort(x, TRUE)
+sigtab$Genus = factor(as.character(sigtab$Genus), levels=names(x))
+ggplot(sigtab, aes(x=Genus, y=log2FoldChange, color=Phylum)) + geom_point(size=6) + 
+  theme(axis.text.x = element_text(angle = -90, hjust = 0, vjust=0.5))
+```
+
+###many significant asvs 
+
+###export:
+```{r}
+pdf(file = "Results/DESeq2_16S_ASVs_RNA_ECM_3trees.pdf",   # The directory you want to save the file in
+    width = 12, # The width of the plot in inches
+    height = 8) # The height of the plot in inches
+
+library("ggplot2")
+theme_set(theme_bw())
+#scale_fill_discrete <- function(palname = "Set1", ...) {
+#    scale_fill_brewer(palette = palname, ...)
+#}
+# Phylum order
+x = tapply(sigtab$log2FoldChange, sigtab$Phylum, function(x) max(x))
+x = sort(x, TRUE)
+sigtab$Phylum = factor(as.character(sigtab$Phylum), levels=names(x))
+# Genus order
+x = tapply(sigtab$log2FoldChange, sigtab$Genus, function(x) max(x))
+x = sort(x, TRUE)
+sigtab$Genus = factor(as.character(sigtab$Genus), levels=names(x))
+ggplot(sigtab, aes(x=Genus, y=log2FoldChange, color=Phylum)) + geom_point(size=6) + 
+  theme(axis.text.x = element_text(angle = -90, hjust = 0, vjust=0.5))
+
+dev.off()
+```
+
+
+##However, how abundant are these asvs? And in how many samples were they found?
+
+###Select our significantly variable ASVs:
+```{r}
+sigtab_names <- rownames_to_column(sigtab)
+Variable_ASVs <- sigtab_names$rowname
+```
+
+###get only significantly variable ASVs, relativized:
+```{r}
+ps16S_ASVs_RNA_variable <- prune_taxa(Variable_ASVs, ps16S_ASVs_RNA_relative)
+ps16S_ASVs_RNA_variable
+```
+
+###How abundant are these?
+```{r}
+plot_bar(ps16S_ASVs_RNA_variable, x = "DO_ID", y = "Abundance", fill = "Phylum")
+```
+
+###Same as previous; mostly just found in T06 at depth. That's as good as we can do, I think.
+
+###Where are the ectos, I guess is a question?
+```{r}
+ECM_jitter <- ggplot(ps16S_metadata, aes(x = Tree_Health, y = ectomycorrhizal)) +
+  
+  geom_boxplot(outlier.alpha = 0,
+               aes(x = Tree_Health, y = ectomycorrhizal, fill = Tree_Health)) +
+  
+  geom_point(aes(x = Tree_Health, y = ectomycorrhizal, fill = Tree_Health),
+             position = position_jitterdodge(dodge.width = .75, jitter.width = .5),
+             alpha = 1) +
+  
+  scale_fill_manual(values=c("#009900", "#CC6600")) +
+  
+  ylim(0, NA) +
+  
+  theme_classic()
+
+ECM_jitter
+```
+
+###That's good, by tree?
+```{r}
+ECM_jitter <- ggplot(ps16S_metadata, aes(x = Tree, y = ectomycorrhizal)) +
+  
+  geom_boxplot(outlier.alpha = 0,
+               aes(x = Tree, y = ectomycorrhizal, fill = Tree_Health)) +
+  
+  geom_point(aes(x = Tree, y = ectomycorrhizal, fill = Tree),
+             position = position_jitterdodge(dodge.width = .75, jitter.width = .5),
+             alpha = 1) +
+  
+  ylim(0, NA) +
+  
+  theme_classic()
+
+ECM_jitter
+```
+
+###hmm. Kind of weird then that we don't see really many ECM-associated bacteria in many of the T03 samples?
+
+
+
+# now subset ASVs with only positive correlations with %ECM:
+```{r}
+sigtab <- filter(sigtab, log2FoldChange > 0)
+dim(sigtab)
+
+write_csv(sigtab, "Results/DESeq2_16S_ASVs_RNA_ECM_positive_3trees_mip.csv")
+write_csv(sigtab, "../../../../Reports/Supplementary Material/Sup_table_DESeq2_16S_ASVs_RNA_ECM_positive_3trees_mip.csv")
+
+```
+
+###Visualize
+```{r}
+
+theme_set(theme_bw())
+
+# Phylum order
+x = tapply(sigtab$log2FoldChange, sigtab$Phylum, function(x) max(x))
+x = sort(x, TRUE)
+sigtab$Phylum = factor(as.character(sigtab$Phylum), levels=names(x))
+# Genus order
+x = tapply(sigtab$log2FoldChange, sigtab$Genus, function(x) max(x))
+x = sort(x, TRUE)
+sigtab$Genus = factor(as.character(sigtab$Genus), levels=names(x))
+
+
+fig4 <- ggplot(sigtab,
+       aes(x = Genus,
+           y = log2FoldChange,
+           color = Phylum,
+           size = baseMean)) +
+  geom_point() +
+  scale_size_continuous(
+    name = "Average per-sample read abudance",
+    breaks = c(10, 150, 300),
+    labels = c("10", "150", "300"),
+    range = c(1, 10)
+    ) +
+  theme(text = element_text(size = 7), axis.text.x = element_text(angle = -90, hjust = 0, vjust=0.5)) +
+  scale_x_discrete(labels = function(x) gsub("g__", "", x)) +
+  scale_color_discrete(labels = function(x) gsub("p__", "", x))
+
+fig4
+```
+
+
+#many significant asvs 
+
+
+##However, how abundant are these asvs? And in how many samples were they found?
+
+###Select our significantly variable ASVs:
+```{r}
+sigtab_names <- rownames_to_column(sigtab)
+Variable_ASVs <- sigtab_names$rowname
+```
+
+###get only significantly variable ASVs, relativized:
+```{r}
+ps16S_ASVs_RNA_variable <- prune_taxa(Variable_ASVs, ps16S_ASVs_RNA_relative)
+ps16S_ASVs_RNA_variable
+write_rds(ps16S_ASVs_RNA_variable, "Results/ps16S_ASVs_RNA_positive_mip.rds")
+```
+
+###How abundant are these?
+```{r}
+plot_bar(ps16S_ASVs_RNA_variable, x = "DO_ID", y = "Abundance", fill = "Phylum")
+```
+
+###Looks very similar.
+
+
+# export other objects for use in other figures/analyses
+```{r}
+write_rds(ps16S_ASVs_RNA_variable, "Results/ps16S_ASVs_RNA_variable_fromDeSeq2.rds")
+write_csv(ps16S_metadata, "Results/ps16S_metadata_fromDeSeq2.csv")
+```
+
+
+
+
+
+
+
+
+

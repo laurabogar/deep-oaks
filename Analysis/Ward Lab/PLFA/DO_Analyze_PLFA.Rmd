@@ -1,0 +1,54 @@
+---
+title: "DO_Analyze_PLFA"
+author: "Glade Bogar"
+date: "2024-09-30"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#load required packages:
+```{r}
+library(tidyverse)
+```
+
+#load required data:
+```{r}
+PLFA_tidy <- read_csv("../../../TidyData/PLFA/Results/PLFA_tidy.csv")
+```
+
+#Create missing %AMF column:
+```{r}
+PLFA <- mutate(PLFA_tidy, PLFA_Arbuscular_Mycorrhizal_Fungi_Percent_of_Total_Biomass = (PLFA_Arbuscular_Mycorrhizal_Fungi_ng_g/PLFA_Total_Living_Microbial_Biomass_ng_g)*100)
+```
+
+#Write data:
+```{r}
+write_csv(PLFA, "Results/PLFA_Analysis_mip.csv")
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

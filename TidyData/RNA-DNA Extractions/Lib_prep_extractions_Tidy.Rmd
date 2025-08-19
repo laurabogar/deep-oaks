@@ -1,0 +1,92 @@
+---
+title: "Untitled"
+output: html_document
+date: "2024-09-13"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+#install.packages("tidyverse")
+```
+#load and check tidyverse package version:
+```{r}
+library(tidyverse)
+packageVersion('tidyverse')
+```
+#update tidyverse (if not just installed):
+```{r}
+tidyverse_update()
+```
+#Load csv
+```{r}
+Lib_prep_Extractions <- read_csv("../../Data/Transcribed data/RNA-DNA Extractions and Lib prep planning/Deep Oak RNA_DNA Yields - Extractions Aliquoted for Library Prep.csv")
+```
+#add column that just says DO then unite with the sample ids
+```{r}
+Lib_prep_extractions_Tidy <- Lib_prep_Extractions %>%
+  mutate(new_column = "DO")
+
+Lib_prep_extractions_Tidy <- Lib_prep_extractions_Tidy %>%
+  unite('Sample_id', 'new_column', 'Tree', 'Depth cm', sep="_")
+
+
+```
+#rename columns to be more data friendly
+```{r}
+Lib_prep_extractions_Tidy <- Lib_prep_extractions_Tidy %>%
+  rename(extraction_date = `Extraction Date`)
+Lib_prep_extractions_Tidy <- Lib_prep_extractions_Tidy %>%
+  rename(date_collected = `Date Collected`)
+Lib_prep_extractions_Tidy <- Lib_prep_extractions_Tidy %>%
+  rename(starting_depth_cm = `Starting depth (cm)`)
+Lib_prep_extractions_Tidy <- Lib_prep_extractions_Tidy %>%
+  rename(RNA_ng_per_uL = `RNA ng/uL`)
+Lib_prep_extractions_Tidy <- Lib_prep_extractions_Tidy %>%
+  rename(DNA_ng_per_uL = `DNA ng/uL`)
+Lib_prep_extractions_Tidy <- Lib_prep_extractions_Tidy %>%
+  rename(twenty_uL_RNA_dilution_2_ng_per_uL = `20uL RNA DILUTION 2ng/uL`)
+Lib_prep_extractions_Tidy <- Lib_prep_extractions_Tidy %>%
+  rename(twenty_uL_DNA_dilution_2_ng_per_uL = `20uL DNA Dilution 2ng/uL`)
+Lib_prep_extractions_Tidy <- Lib_prep_extractions_Tidy %>%
+  rename(soil_mass_g_extraction = `Soil Mass (g)`)
+Lib_prep_extractions_Tidy <- Lib_prep_extractions_Tidy %>%
+  rename(batch_letter = `Letter in Batch`)
+Lib_prep_extractions_Tidy <- Lib_prep_extractions_Tidy %>%
+  rename(DO_RNA_Box_ID = `DO RNA Box ID`)
+Lib_prep_extractions_Tidy <- Lib_prep_extractions_Tidy %>%
+  rename(DO_DNA_Box_ID = `DO DNA Box ID`)
+Lib_prep_extractions_Tidy <- Lib_prep_extractions_Tidy %>%
+  rename(RNA_PCR_water = `RNA PCR Water to be Added?`)
+Lib_prep_extractions_Tidy <- Lib_prep_extractions_Tidy %>%
+  rename(DNA_PCR_water = `DNA PCR Water to be added?`)
+Lib_prep_extractions_Tidy <- Lib_prep_extractions_Tidy %>%
+  rename(cDNA_conc_ng_per_uL = `cDNA conc. ng/uL`)
+Lib_prep_extractions_Tidy <- Lib_prep_extractions_Tidy %>%
+  rename(uL_cDNA_input = `uL of cDNA to input`)
+Lib_prep_extractions_Tidy <- Lib_prep_extractions_Tidy %>%
+  rename(cDNA_final_input_ng_per_uL = `Final Input ng`)
+
+```
+#remove un-needed columns
+```{r}
+Lib_prep_extractions_Tidy <- select(Lib_prep_extractions_Tidy, -"...16")
+```
+#change doubles to characters and characters to doubles
+```{r}
+Lib_prep_extractions_Tidy$starting_depth_cm <- as.character(Lib_prep_extractions_Tidy$starting_depth_cm)
+Lib_prep_extractions_Tidy$twenty_uL_RNA_dilution_2_ng_per_uL <- as.numeric(Lib_prep_extractions_Tidy$twenty_uL_RNA_dilution_2_ng_per_uL)
+Lib_prep_extractions_Tidy$RNA_PCR_water <- as.numeric(Lib_prep_extractions_Tidy$RNA_PCR_water)
+Lib_prep_extractions_Tidy$DNA_PCR_water <- as.numeric(Lib_prep_extractions_Tidy$DNA_PCR_water)
+```
+#replace NAs with 0
+```{r}
+
+  Lib_prep_extractions_Tidy_0 <- mutate_all(Lib_prep_extractions_Tidy, ~ifelse(is.na(.), 0, .))
+```
+#export cleaned data:
+```{r}
+write_csv(Lib_prep_extractions_Tidy_0, "Results/Lib_prep_extractions_Tidy_mip.csv")
+```

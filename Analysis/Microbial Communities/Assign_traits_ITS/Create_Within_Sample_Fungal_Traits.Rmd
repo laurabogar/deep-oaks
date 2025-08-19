@@ -1,0 +1,1026 @@
+---
+title: "Create_Within_Sample_Fungal_Traits"
+author: "Glade Bogar"
+date: "2024-09-17"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+###Assign functions to fungal sequences
+
+#Load required packages:
+```{r}
+library("phyloseq")
+packageVersion("phyloseq")
+
+library("ggplot2")
+packageVersion("ggplot2")
+
+library("tidyverse")
+packageVersion("tidyverse")
+
+library("dplyr")
+```
+
+#Load phyloseq objects created in Assign_Fungal_Traits.Rmd:
+```{r}
+psITS_fungaltraits <- readRDS("Results/psITS_remove_8_reads_fungaltraits_mip.rds")
+```
+
+#List 'taxonomic' ranks"
+```{r}
+rank_names(psITS_fungaltraits)
+```
+
+#transform to relative abundances:
+```{r}
+psITS_fungaltraits_relative <- transform_sample_counts(psITS_fungaltraits, function(x){x / sum(x)})
+```
+
+#extract taxa table
+```{r}
+# Extract abundance matrix from the phyloseq object
+TAXA1 <- as(tax_table(psITS_fungaltraits_relative), "matrix")
+# Coerce to data.frame
+psITS_fungaltraits_taxa <- as.data.frame(TAXA1)
+
+```
+
+#Extract OTU table
+```{r}
+# Extract abundance matrix from the phyloseq object
+OTU1 <- as(otu_table(psITS_fungaltraits_relative), "matrix")
+# Coerce to data.frame
+psITS_fungaltraits_OTU <- as.data.frame(OTU1)
+
+```
+
+#Extract sample names
+```{r}
+samplenames <- as.data.frame(sample_names(psITS_fungaltraits_relative))
+
+```
+
+#Vandepol split genus Mortierella in 2020 - manually assigning genus mortierella's functions to what are now genera actinomortierella, gryganskiella, linnemannia, lunasporangiospora, necromortierella, podila.
+#Note this in the methods.
+
+#Add samplenames to first column of OTU_Table:
+```{r}
+psITS_fungaltraits_OTU <- rownames_to_column(psITS_fungaltraits_OTU, var = "DO_sample_names")
+```
+
+### 1:Primary_lifestyle
+
+#replace entire first row of OTU_table with Primary_lifestyle column of Taxa_table.csv, including heading.
+```{r}
+Primary_lifestyle_transposed <- t(psITS_fungaltraits_taxa$Primary_lifestyle)
+Primary_lifestyle_transposed <- as.data.frame(Primary_lifestyle_transposed)
+column_title <- as.data.frame(c("Primary_lifestyle"))
+Primary_lifestyle_transposed <- bind_cols(column_title, Primary_lifestyle_transposed)
+colnames(Primary_lifestyle_transposed) <- colnames(psITS_fungaltraits_OTU)
+psITS_fungaltraits_OTU <- data.frame(lapply(psITS_fungaltraits_OTU, as.character), stringsAsFactors = FALSE)
+Primary_lifestyle <- bind_rows(Primary_lifestyle_transposed, psITS_fungaltraits_OTU)
+```
+
+#transpose, fix column names, remove rownames (ASVs), re-code as numeric:
+```{r}
+Primary_lifestyle <- t(Primary_lifestyle)
+
+colnames(Primary_lifestyle) <- as.character(Primary_lifestyle[1, ])
+Primary_lifestyle <- as.data.frame(Primary_lifestyle[-1, ])
+rownames(Primary_lifestyle) <- NULL
+
+recode_numeric <- select(Primary_lifestyle, -Primary_lifestyle)
+recode_numeric <- data.frame(lapply(recode_numeric, as.numeric))
+
+Primary_lifestyle <- bind_cols(Primary_lifestyle$Primary_lifestyle, recode_numeric)
+Primary_lifestyle <- rename(Primary_lifestyle, Primary_lifestyle = "...1")
+```
+
+#collapse all duplicate values:
+```{r}
+metadata_Primary_lifestyle_grouped <- Primary_lifestyle %>%
+  group_by(Primary_lifestyle) %>%
+  summarise(across(everything(), sum))
+```
+
+#Transpose, edit for later leftjoin:
+```{r}
+metadata_Primary_lifestyle_grouped_t <- as.data.frame(t(metadata_Primary_lifestyle_grouped))
+metadata_Primary_lifestyle_grouped_t <- rownames_to_column(metadata_Primary_lifestyle_grouped_t, var = "Sequencing_ID")
+```
+
+#check sums:
+```{r}
+checksums <- metadata_Primary_lifestyle_grouped_t
+checksums <- checksums[-1,-1]
+checksums <- mutate(checksums, across(everything(), as.numeric))
+checksums <- mutate(checksums, traitsums = rowSums(across(everything())))
+
+checksums$traitsums
+```
+
+#export collapsed metadata:
+```{r}
+write_csv(metadata_Primary_lifestyle_grouped_t, "Results/ITS_Functions_By_Sample/Primary_lifestyle_by_sample_mip.csv", col_names = FALSE)
+```
+
+### 2: Secondary_lifestyle
+
+#replace entire first row of OTU_table with Secondary_lifestyle column of Taxa_table.csv, including heading.
+```{r}
+Secondary_lifestyle_transposed <- t(psITS_fungaltraits_taxa$Secondary_lifestyle)
+Secondary_lifestyle_transposed <- as.data.frame(Secondary_lifestyle_transposed)
+column_title <- as.data.frame(c("Secondary_lifestyle"))
+Secondary_lifestyle_transposed <- bind_cols(column_title, Secondary_lifestyle_transposed)
+colnames(Secondary_lifestyle_transposed) <- colnames(psITS_fungaltraits_OTU)
+psITS_fungaltraits_OTU <- data.frame(lapply(psITS_fungaltraits_OTU, as.character), stringsAsFactors = FALSE)
+Secondary_lifestyle <- bind_rows(Secondary_lifestyle_transposed, psITS_fungaltraits_OTU)
+```
+
+#transpose, fix column names, remove rownames (ASVs), re-code as numeric:
+```{r}
+Secondary_lifestyle <- t(Secondary_lifestyle)
+
+colnames(Secondary_lifestyle) <- as.character(Secondary_lifestyle[1, ])
+Secondary_lifestyle <- as.data.frame(Secondary_lifestyle[-1, ])
+rownames(Secondary_lifestyle) <- NULL
+
+recode_numeric <- select(Secondary_lifestyle, -Secondary_lifestyle)
+recode_numeric <- data.frame(lapply(recode_numeric, as.numeric))
+
+Secondary_lifestyle <- bind_cols(Secondary_lifestyle$Secondary_lifestyle, recode_numeric)
+Secondary_lifestyle <- rename(Secondary_lifestyle, Secondary_lifestyle = "...1")
+```
+
+#collapse all duplicate values:
+```{r}
+metadata_Secondary_lifestyle_grouped <- Secondary_lifestyle %>%
+  group_by(Secondary_lifestyle) %>%
+  summarise(across(everything(), sum))
+```
+
+#Transpose, edit for later leftjoin:
+```{r}
+metadata_Secondary_lifestyle_grouped_t <- as.data.frame(t(metadata_Secondary_lifestyle_grouped))
+metadata_Secondary_lifestyle_grouped_t <- rownames_to_column(metadata_Secondary_lifestyle_grouped_t, var = "Sequencing_ID")
+```
+
+#check sums:
+```{r}
+checksums <- metadata_Secondary_lifestyle_grouped_t
+checksums <- checksums[-1,-1]
+checksums <- mutate(checksums, across(everything(), as.numeric))
+checksums <- mutate(checksums, traitsums = rowSums(across(everything())))
+
+checksums$traitsums
+```
+
+#export collapsed metadata:
+```{r}
+write_csv(metadata_Secondary_lifestyle_grouped_t, "Results/ITS_Functions_By_Sample/Secondary_lifestyle_by_sample_mip.csv", col_names = FALSE)
+```
+
+### 3: Comment_on_lifestyle_template
+
+#replace entire first row of OTU_table with Comment_on_lifestyle_template column of Taxa_table.csv, including heading.
+```{r}
+Comment_on_lifestyle_template_transposed <- t(psITS_fungaltraits_taxa$Comment_on_lifestyle_template)
+Comment_on_lifestyle_template_transposed <- as.data.frame(Comment_on_lifestyle_template_transposed)
+column_title <- as.data.frame(c("Comment_on_lifestyle_template"))
+Comment_on_lifestyle_template_transposed <- bind_cols(column_title, Comment_on_lifestyle_template_transposed)
+colnames(Comment_on_lifestyle_template_transposed) <- colnames(psITS_fungaltraits_OTU)
+psITS_fungaltraits_OTU <- data.frame(lapply(psITS_fungaltraits_OTU, as.character), stringsAsFactors = FALSE)
+Comment_on_lifestyle_template <- bind_rows(Comment_on_lifestyle_template_transposed, psITS_fungaltraits_OTU)
+```
+
+#transpose, fix column names, remove rownames (ASVs), re-code as numeric:
+```{r}
+Comment_on_lifestyle_template <- t(Comment_on_lifestyle_template)
+
+colnames(Comment_on_lifestyle_template) <- as.character(Comment_on_lifestyle_template[1, ])
+Comment_on_lifestyle_template <- as.data.frame(Comment_on_lifestyle_template[-1, ])
+rownames(Comment_on_lifestyle_template) <- NULL
+
+recode_numeric <- select(Comment_on_lifestyle_template, -Comment_on_lifestyle_template)
+recode_numeric <- data.frame(lapply(recode_numeric, as.numeric))
+
+Comment_on_lifestyle_template <- bind_cols(Comment_on_lifestyle_template$Comment_on_lifestyle_template, recode_numeric)
+Comment_on_lifestyle_template <- rename(Comment_on_lifestyle_template, Comment_on_lifestyle_template = "...1")
+```
+
+#collapse all duplicate values:
+```{r}
+metadata_Comment_on_lifestyle_template_grouped <- Comment_on_lifestyle_template %>%
+  group_by(Comment_on_lifestyle_template) %>%
+  summarise(across(everything(), sum))
+```
+
+#Transpose, edit for later leftjoin:
+```{r}
+metadata_Comment_on_lifestyle_template_grouped_t <- as.data.frame(t(metadata_Comment_on_lifestyle_template_grouped))
+metadata_Comment_on_lifestyle_template_grouped_t <- rownames_to_column(metadata_Comment_on_lifestyle_template_grouped_t, var = "Sequencing_ID")
+```
+
+#check sums:
+```{r}
+checksums <- metadata_Comment_on_lifestyle_template_grouped_t
+checksums <- checksums[-1,-1]
+checksums <- mutate(checksums, across(everything(), as.numeric))
+checksums <- mutate(checksums, traitsums = rowSums(across(everything())))
+
+checksums$traitsums
+```
+
+#export collapsed metadata:
+```{r}
+write_csv(metadata_Comment_on_lifestyle_template_grouped_t, "Results/ITS_Functions_By_Sample/Comment_on_lifestyle_template_by_sample_mip.csv", col_names = FALSE)
+```
+
+### 4: Endophytic_interaction_capability_template
+
+#replace entire first row of OTU_table with Endophytic_interaction_capability_template column of Taxa_table.csv, including heading.
+```{r}
+Endophytic_interaction_capability_template_transposed <- t(psITS_fungaltraits_taxa$Endophytic_interaction_capability_template)
+Endophytic_interaction_capability_template_transposed <- as.data.frame(Endophytic_interaction_capability_template_transposed)
+column_title <- as.data.frame(c("Endophytic_interaction_capability_template"))
+Endophytic_interaction_capability_template_transposed <- bind_cols(column_title, Endophytic_interaction_capability_template_transposed)
+colnames(Endophytic_interaction_capability_template_transposed) <- colnames(psITS_fungaltraits_OTU)
+psITS_fungaltraits_OTU <- data.frame(lapply(psITS_fungaltraits_OTU, as.character), stringsAsFactors = FALSE)
+Endophytic_interaction_capability_template <- bind_rows(Endophytic_interaction_capability_template_transposed, psITS_fungaltraits_OTU)
+```
+
+#transpose, fix column names, remove rownames (ASVs), re-code as numeric:
+```{r}
+Endophytic_interaction_capability_template <- t(Endophytic_interaction_capability_template)
+
+colnames(Endophytic_interaction_capability_template) <- as.character(Endophytic_interaction_capability_template[1, ])
+Endophytic_interaction_capability_template <- as.data.frame(Endophytic_interaction_capability_template[-1, ])
+rownames(Endophytic_interaction_capability_template) <- NULL
+
+recode_numeric <- select(Endophytic_interaction_capability_template, -Endophytic_interaction_capability_template)
+recode_numeric <- data.frame(lapply(recode_numeric, as.numeric))
+
+Endophytic_interaction_capability_template <- bind_cols(Endophytic_interaction_capability_template$Endophytic_interaction_capability_template, recode_numeric)
+Endophytic_interaction_capability_template <- rename(Endophytic_interaction_capability_template, Endophytic_interaction_capability_template = "...1")
+```
+
+#collapse all duplicate values:
+```{r}
+metadata_Endophytic_interaction_capability_template_grouped <- Endophytic_interaction_capability_template %>%
+  group_by(Endophytic_interaction_capability_template) %>%
+  summarise(across(everything(), sum))
+```
+
+#Transpose, edit for later leftjoin:
+```{r}
+metadata_Endophytic_interaction_capability_template_grouped_t <- as.data.frame(t(metadata_Endophytic_interaction_capability_template_grouped))
+metadata_Endophytic_interaction_capability_template_grouped_t <- rownames_to_column(metadata_Endophytic_interaction_capability_template_grouped_t, var = "Sequencing_ID")
+```
+
+#check sums:
+```{r}
+checksums <- metadata_Endophytic_interaction_capability_template_grouped_t
+checksums <- checksums[-1,-1]
+checksums <- mutate(checksums, across(everything(), as.numeric))
+checksums <- mutate(checksums, traitsums = rowSums(across(everything())))
+
+checksums$traitsums
+```
+
+#export collapsed metadata:
+```{r}
+write_csv(metadata_Endophytic_interaction_capability_template_grouped_t, "Results/ITS_Functions_By_Sample/Endophytic_interaction_capability_template_by_sample_mip.csv", col_names = FALSE)
+```
+
+### 5: Plant_pathogenic_capacity_template
+
+#replace entire first row of OTU_table with Plant_pathogenic_capacity_template column of Taxa_table.csv, including heading.
+```{r}
+Plant_pathogenic_capacity_template_transposed <- t(psITS_fungaltraits_taxa$Plant_pathogenic_capacity_template)
+Plant_pathogenic_capacity_template_transposed <- as.data.frame(Plant_pathogenic_capacity_template_transposed)
+column_title <- as.data.frame(c("Plant_pathogenic_capacity_template"))
+Plant_pathogenic_capacity_template_transposed <- bind_cols(column_title, Plant_pathogenic_capacity_template_transposed)
+colnames(Plant_pathogenic_capacity_template_transposed) <- colnames(psITS_fungaltraits_OTU)
+psITS_fungaltraits_OTU <- data.frame(lapply(psITS_fungaltraits_OTU, as.character), stringsAsFactors = FALSE)
+Plant_pathogenic_capacity_template <- bind_rows(Plant_pathogenic_capacity_template_transposed, psITS_fungaltraits_OTU)
+```
+
+#transpose, fix column names, remove rownames (ASVs), re-code as numeric:
+```{r}
+Plant_pathogenic_capacity_template <- t(Plant_pathogenic_capacity_template)
+
+colnames(Plant_pathogenic_capacity_template) <- as.character(Plant_pathogenic_capacity_template[1, ])
+Plant_pathogenic_capacity_template <- as.data.frame(Plant_pathogenic_capacity_template[-1, ])
+rownames(Plant_pathogenic_capacity_template) <- NULL
+
+recode_numeric <- select(Plant_pathogenic_capacity_template, -Plant_pathogenic_capacity_template)
+recode_numeric <- data.frame(lapply(recode_numeric, as.numeric))
+
+Plant_pathogenic_capacity_template <- bind_cols(Plant_pathogenic_capacity_template$Plant_pathogenic_capacity_template, recode_numeric)
+Plant_pathogenic_capacity_template <- rename(Plant_pathogenic_capacity_template, Plant_pathogenic_capacity_template = "...1")
+```
+
+#collapse all duplicate values:
+```{r}
+metadata_Plant_pathogenic_capacity_template_grouped <- Plant_pathogenic_capacity_template %>%
+  group_by(Plant_pathogenic_capacity_template) %>%
+  summarise(across(everything(), sum))
+```
+
+#Transpose, edit for later leftjoin:
+```{r}
+metadata_Plant_pathogenic_capacity_template_grouped_t <- as.data.frame(t(metadata_Plant_pathogenic_capacity_template_grouped))
+metadata_Plant_pathogenic_capacity_template_grouped_t <- rownames_to_column(metadata_Plant_pathogenic_capacity_template_grouped_t, var = "Sequencing_ID")
+```
+
+#check sums:
+```{r}
+checksums <- metadata_Plant_pathogenic_capacity_template_grouped_t
+checksums <- checksums[-1,-1]
+checksums <- mutate(checksums, across(everything(), as.numeric))
+checksums <- mutate(checksums, traitsums = rowSums(across(everything())))
+
+checksums$traitsums
+```
+
+#export collapsed metadata:
+```{r}
+write_csv(metadata_Plant_pathogenic_capacity_template_grouped_t, "Results/ITS_Functions_By_Sample/Plant_pathogenic_capacity_template_by_sample_mip.csv", col_names = FALSE)
+```
+
+### 6: Decay_substrate_template
+
+#replace entire first row of OTU_table with Decay_substrate_template column of Taxa_table.csv, including heading.
+```{r}
+Decay_substrate_template_transposed <- t(psITS_fungaltraits_taxa$Decay_substrate_template)
+Decay_substrate_template_transposed <- as.data.frame(Decay_substrate_template_transposed)
+column_title <- as.data.frame(c("Decay_substrate_template"))
+Decay_substrate_template_transposed <- bind_cols(column_title, Decay_substrate_template_transposed)
+colnames(Decay_substrate_template_transposed) <- colnames(psITS_fungaltraits_OTU)
+psITS_fungaltraits_OTU <- data.frame(lapply(psITS_fungaltraits_OTU, as.character), stringsAsFactors = FALSE)
+Decay_substrate_template <- bind_rows(Decay_substrate_template_transposed, psITS_fungaltraits_OTU)
+```
+
+#transpose, fix column names, remove rownames (ASVs), re-code as numeric:
+```{r}
+Decay_substrate_template <- t(Decay_substrate_template)
+
+colnames(Decay_substrate_template) <- as.character(Decay_substrate_template[1, ])
+Decay_substrate_template <- as.data.frame(Decay_substrate_template[-1, ])
+rownames(Decay_substrate_template) <- NULL
+
+recode_numeric <- select(Decay_substrate_template, -Decay_substrate_template)
+recode_numeric <- data.frame(lapply(recode_numeric, as.numeric))
+
+Decay_substrate_template <- bind_cols(Decay_substrate_template$Decay_substrate_template, recode_numeric)
+Decay_substrate_template <- rename(Decay_substrate_template, Decay_substrate_template = "...1")
+```
+
+#collapse all duplicate values:
+```{r}
+metadata_Decay_substrate_template_grouped <- Decay_substrate_template %>%
+  group_by(Decay_substrate_template) %>%
+  summarise(across(everything(), sum))
+```
+
+#Transpose, edit for later leftjoin:
+```{r}
+metadata_Decay_substrate_template_grouped_t <- as.data.frame(t(metadata_Decay_substrate_template_grouped))
+metadata_Decay_substrate_template_grouped_t <- rownames_to_column(metadata_Decay_substrate_template_grouped_t, var = "Sequencing_ID")
+```
+
+#check sums:
+```{r}
+checksums <- metadata_Decay_substrate_template_grouped_t
+checksums <- checksums[-1,-1]
+checksums <- mutate(checksums, across(everything(), as.numeric))
+checksums <- mutate(checksums, traitsums = rowSums(across(everything())))
+
+checksums$traitsums
+```
+
+#export collapsed metadata:
+```{r}
+write_csv(metadata_Decay_substrate_template_grouped_t, "Results/ITS_Functions_By_Sample/Decay_substrate_template_by_sample_mip.csv", col_names = FALSE)
+```
+
+### 7: Decay_type_template
+
+#replace entire first row of OTU_table with Decay_type_template column of Taxa_table.csv, including heading.
+```{r}
+Decay_type_template_transposed <- t(psITS_fungaltraits_taxa$Decay_type_template)
+Decay_type_template_transposed <- as.data.frame(Decay_type_template_transposed)
+column_title <- as.data.frame(c("Decay_type_template"))
+Decay_type_template_transposed <- bind_cols(column_title, Decay_type_template_transposed)
+colnames(Decay_type_template_transposed) <- colnames(psITS_fungaltraits_OTU)
+psITS_fungaltraits_OTU <- data.frame(lapply(psITS_fungaltraits_OTU, as.character), stringsAsFactors = FALSE)
+Decay_type_template <- bind_rows(Decay_type_template_transposed, psITS_fungaltraits_OTU)
+```
+
+#transpose, fix column names, remove rownames (ASVs), re-code as numeric:
+```{r}
+Decay_type_template <- t(Decay_type_template)
+
+colnames(Decay_type_template) <- as.character(Decay_type_template[1, ])
+Decay_type_template <- as.data.frame(Decay_type_template[-1, ])
+rownames(Decay_type_template) <- NULL
+
+recode_numeric <- select(Decay_type_template, -Decay_type_template)
+recode_numeric <- data.frame(lapply(recode_numeric, as.numeric))
+
+Decay_type_template <- bind_cols(Decay_type_template$Decay_type_template, recode_numeric)
+Decay_type_template <- rename(Decay_type_template, Decay_type_template = "...1")
+```
+
+#collapse all duplicate values:
+```{r}
+metadata_Decay_type_template_grouped <- Decay_type_template %>%
+  group_by(Decay_type_template) %>%
+  summarise(across(everything(), sum))
+```
+
+#Transpose, edit for later leftjoin:
+```{r}
+metadata_Decay_type_template_grouped_t <- as.data.frame(t(metadata_Decay_type_template_grouped))
+metadata_Decay_type_template_grouped_t <- rownames_to_column(metadata_Decay_type_template_grouped_t, var = "Sequencing_ID")
+```
+
+#check sums:
+```{r}
+checksums <- metadata_Decay_type_template_grouped_t
+checksums <- checksums[-1,-1]
+checksums <- mutate(checksums, across(everything(), as.numeric))
+checksums <- mutate(checksums, traitsums = rowSums(across(everything())))
+
+checksums$traitsums
+```
+
+#export collapsed metadata:
+```{r}
+write_csv(metadata_Decay_type_template_grouped_t, "Results/ITS_Functions_By_Sample/Decay_type_template_by_sample_mip.csv", col_names = FALSE)
+```
+
+### 8: Aquatic_habitat_template
+
+#replace entire first row of OTU_table with Aquatic_habitat_template column of Taxa_table.csv, including heading.
+```{r}
+Aquatic_habitat_template_transposed <- t(psITS_fungaltraits_taxa$Aquatic_habitat_template)
+Aquatic_habitat_template_transposed <- as.data.frame(Aquatic_habitat_template_transposed)
+column_title <- as.data.frame(c("Aquatic_habitat_template"))
+Aquatic_habitat_template_transposed <- bind_cols(column_title, Aquatic_habitat_template_transposed)
+colnames(Aquatic_habitat_template_transposed) <- colnames(psITS_fungaltraits_OTU)
+psITS_fungaltraits_OTU <- data.frame(lapply(psITS_fungaltraits_OTU, as.character), stringsAsFactors = FALSE)
+Aquatic_habitat_template <- bind_rows(Aquatic_habitat_template_transposed, psITS_fungaltraits_OTU)
+```
+
+#transpose, fix column names, remove rownames (ASVs), re-code as numeric:
+```{r}
+Aquatic_habitat_template <- t(Aquatic_habitat_template)
+
+colnames(Aquatic_habitat_template) <- as.character(Aquatic_habitat_template[1, ])
+Aquatic_habitat_template <- as.data.frame(Aquatic_habitat_template[-1, ])
+rownames(Aquatic_habitat_template) <- NULL
+
+recode_numeric <- select(Aquatic_habitat_template, -Aquatic_habitat_template)
+recode_numeric <- data.frame(lapply(recode_numeric, as.numeric))
+
+Aquatic_habitat_template <- bind_cols(Aquatic_habitat_template$Aquatic_habitat_template, recode_numeric)
+Aquatic_habitat_template <- rename(Aquatic_habitat_template, Aquatic_habitat_template = "...1")
+```
+
+#collapse all duplicate values:
+```{r}
+metadata_Aquatic_habitat_template_grouped <- Aquatic_habitat_template %>%
+  group_by(Aquatic_habitat_template) %>%
+  summarise(across(everything(), sum))
+```
+
+#Transpose, edit for later leftjoin:
+```{r}
+metadata_Aquatic_habitat_template_grouped_t <- as.data.frame(t(metadata_Aquatic_habitat_template_grouped))
+metadata_Aquatic_habitat_template_grouped_t <- rownames_to_column(metadata_Aquatic_habitat_template_grouped_t, var = "Sequencing_ID")
+```
+
+#check sums:
+```{r}
+checksums <- metadata_Aquatic_habitat_template_grouped_t
+checksums <- checksums[-1,-1]
+checksums <- mutate(checksums, across(everything(), as.numeric))
+checksums <- mutate(checksums, traitsums = rowSums(across(everything())))
+
+checksums$traitsums
+```
+
+#export collapsed metadata:
+```{r}
+write_csv(metadata_Aquatic_habitat_template_grouped_t, "Results/ITS_Functions_By_Sample/Aquatic_habitat_template_by_sample_mip.csv", col_names = FALSE)
+```
+
+### 9: Animal_biotrophic_capacity_template
+
+#replace entire first row of OTU_table with Animal_biotrophic_capacity_template column of Taxa_table.csv, including heading.
+```{r}
+Animal_biotrophic_capacity_template_transposed <- t(psITS_fungaltraits_taxa$Animal_biotrophic_capacity_template)
+Animal_biotrophic_capacity_template_transposed <- as.data.frame(Animal_biotrophic_capacity_template_transposed)
+column_title <- as.data.frame(c("Animal_biotrophic_capacity_template"))
+Animal_biotrophic_capacity_template_transposed <- bind_cols(column_title, Animal_biotrophic_capacity_template_transposed)
+colnames(Animal_biotrophic_capacity_template_transposed) <- colnames(psITS_fungaltraits_OTU)
+psITS_fungaltraits_OTU <- data.frame(lapply(psITS_fungaltraits_OTU, as.character), stringsAsFactors = FALSE)
+Animal_biotrophic_capacity_template <- bind_rows(Animal_biotrophic_capacity_template_transposed, psITS_fungaltraits_OTU)
+```
+
+#transpose, fix column names, remove rownames (ASVs), re-code as numeric:
+```{r}
+Animal_biotrophic_capacity_template <- t(Animal_biotrophic_capacity_template)
+
+colnames(Animal_biotrophic_capacity_template) <- as.character(Animal_biotrophic_capacity_template[1, ])
+Animal_biotrophic_capacity_template <- as.data.frame(Animal_biotrophic_capacity_template[-1, ])
+rownames(Animal_biotrophic_capacity_template) <- NULL
+
+recode_numeric <- select(Animal_biotrophic_capacity_template, -Animal_biotrophic_capacity_template)
+recode_numeric <- data.frame(lapply(recode_numeric, as.numeric))
+
+Animal_biotrophic_capacity_template <- bind_cols(Animal_biotrophic_capacity_template$Animal_biotrophic_capacity_template, recode_numeric)
+Animal_biotrophic_capacity_template <- rename(Animal_biotrophic_capacity_template, Animal_biotrophic_capacity_template = "...1")
+```
+
+#collapse all duplicate values:
+```{r}
+metadata_Animal_biotrophic_capacity_template_grouped <- Animal_biotrophic_capacity_template %>%
+  group_by(Animal_biotrophic_capacity_template) %>%
+  summarise(across(everything(), sum))
+```
+
+#Transpose, edit for later leftjoin:
+```{r}
+metadata_Animal_biotrophic_capacity_template_grouped_t <- as.data.frame(t(metadata_Animal_biotrophic_capacity_template_grouped))
+metadata_Animal_biotrophic_capacity_template_grouped_t <- rownames_to_column(metadata_Animal_biotrophic_capacity_template_grouped_t, var = "Sequencing_ID")
+```
+
+#check sums:
+```{r}
+checksums <- metadata_Animal_biotrophic_capacity_template_grouped_t
+checksums <- checksums[-1,-1]
+checksums <- mutate(checksums, across(everything(), as.numeric))
+checksums <- mutate(checksums, traitsums = rowSums(across(everything())))
+
+checksums$traitsums
+```
+
+#export collapsed metadata:
+```{r}
+write_csv(metadata_Animal_biotrophic_capacity_template_grouped_t, "Results/ITS_Functions_By_Sample/Animal_biotrophic_capacity_template_by_sample_mip.csv", col_names = FALSE)
+```
+
+### 10: Specific_hosts
+
+#replace entire first row of OTU_table with Specific_hosts column of Taxa_table.csv, including heading.
+```{r}
+Specific_hosts_transposed <- t(psITS_fungaltraits_taxa$Specific_hosts)
+Specific_hosts_transposed <- as.data.frame(Specific_hosts_transposed)
+column_title <- as.data.frame(c("Specific_hosts"))
+Specific_hosts_transposed <- bind_cols(column_title, Specific_hosts_transposed)
+colnames(Specific_hosts_transposed) <- colnames(psITS_fungaltraits_OTU)
+psITS_fungaltraits_OTU <- data.frame(lapply(psITS_fungaltraits_OTU, as.character), stringsAsFactors = FALSE)
+Specific_hosts <- bind_rows(Specific_hosts_transposed, psITS_fungaltraits_OTU)
+```
+
+#transpose, fix column names, remove rownames (ASVs), re-code as numeric:
+```{r}
+Specific_hosts <- t(Specific_hosts)
+
+colnames(Specific_hosts) <- as.character(Specific_hosts[1, ])
+Specific_hosts <- as.data.frame(Specific_hosts[-1, ])
+rownames(Specific_hosts) <- NULL
+
+recode_numeric <- select(Specific_hosts, -Specific_hosts)
+recode_numeric <- data.frame(lapply(recode_numeric, as.numeric))
+
+Specific_hosts <- bind_cols(Specific_hosts$Specific_hosts, recode_numeric)
+Specific_hosts <- rename(Specific_hosts, Specific_hosts = "...1")
+```
+
+#collapse all duplicate values:
+```{r}
+metadata_Specific_hosts_grouped <- Specific_hosts %>%
+  group_by(Specific_hosts) %>%
+  summarise(across(everything(), sum))
+```
+
+#Transpose, edit for later leftjoin:
+```{r}
+metadata_Specific_hosts_grouped_t <- as.data.frame(t(metadata_Specific_hosts_grouped))
+metadata_Specific_hosts_grouped_t <- rownames_to_column(metadata_Specific_hosts_grouped_t, var = "Sequencing_ID")
+```
+
+#check sums:
+```{r}
+checksums <- metadata_Specific_hosts_grouped_t
+checksums <- checksums[-1,-1]
+checksums <- mutate(checksums, across(everything(), as.numeric))
+checksums <- mutate(checksums, traitsums = rowSums(across(everything())))
+
+checksums$traitsums
+```
+
+#export collapsed metadata:
+```{r}
+write_csv(metadata_Specific_hosts_grouped_t, "Results/ITS_Functions_By_Sample/Specific_hosts_by_sample_mip.csv", col_names = FALSE)
+```
+
+### 11: Growth_form_template
+
+#replace entire first row of OTU_table with Growth_form_template column of Taxa_table.csv, including heading.
+```{r}
+Growth_form_template_transposed <- t(psITS_fungaltraits_taxa$Growth_form_template)
+Growth_form_template_transposed <- as.data.frame(Growth_form_template_transposed)
+column_title <- as.data.frame(c("Growth_form_template"))
+Growth_form_template_transposed <- bind_cols(column_title, Growth_form_template_transposed)
+colnames(Growth_form_template_transposed) <- colnames(psITS_fungaltraits_OTU)
+psITS_fungaltraits_OTU <- data.frame(lapply(psITS_fungaltraits_OTU, as.character), stringsAsFactors = FALSE)
+Growth_form_template <- bind_rows(Growth_form_template_transposed, psITS_fungaltraits_OTU)
+```
+
+#transpose, fix column names, remove rownames (ASVs), re-code as numeric:
+```{r}
+Growth_form_template <- t(Growth_form_template)
+
+colnames(Growth_form_template) <- as.character(Growth_form_template[1, ])
+Growth_form_template <- as.data.frame(Growth_form_template[-1, ])
+rownames(Growth_form_template) <- NULL
+
+recode_numeric <- select(Growth_form_template, -Growth_form_template)
+recode_numeric <- data.frame(lapply(recode_numeric, as.numeric))
+
+Growth_form_template <- bind_cols(Growth_form_template$Growth_form_template, recode_numeric)
+Growth_form_template <- rename(Growth_form_template, Growth_form_template = "...1")
+```
+
+#collapse all duplicate values:
+```{r}
+metadata_Growth_form_template_grouped <- Growth_form_template %>%
+  group_by(Growth_form_template) %>%
+  summarise(across(everything(), sum))
+```
+
+#Transpose, edit for later leftjoin:
+```{r}
+metadata_Growth_form_template_grouped_t <- as.data.frame(t(metadata_Growth_form_template_grouped))
+metadata_Growth_form_template_grouped_t <- rownames_to_column(metadata_Growth_form_template_grouped_t, var = "Sequencing_ID")
+```
+
+#check sums:
+```{r}
+checksums <- metadata_Growth_form_template_grouped_t
+checksums <- checksums[-1,-1]
+checksums <- mutate(checksums, across(everything(), as.numeric))
+checksums <- mutate(checksums, traitsums = rowSums(across(everything())))
+
+checksums$traitsums
+```
+
+#export collapsed metadata:
+```{r}
+write_csv(metadata_Growth_form_template_grouped_t, "Results/ITS_Functions_By_Sample/Growth_form_template_by_sample_mip.csv", col_names = FALSE)
+```
+
+### 12: Fruitbody_type_template
+
+#replace entire first row of OTU_table with Fruitbody_type_template column of Taxa_table.csv, including heading.
+```{r}
+Fruitbody_type_template_transposed <- t(psITS_fungaltraits_taxa$Fruitbody_type_template)
+Fruitbody_type_template_transposed <- as.data.frame(Fruitbody_type_template_transposed)
+column_title <- as.data.frame(c("Fruitbody_type_template"))
+Fruitbody_type_template_transposed <- bind_cols(column_title, Fruitbody_type_template_transposed)
+colnames(Fruitbody_type_template_transposed) <- colnames(psITS_fungaltraits_OTU)
+psITS_fungaltraits_OTU <- data.frame(lapply(psITS_fungaltraits_OTU, as.character), stringsAsFactors = FALSE)
+Fruitbody_type_template <- bind_rows(Fruitbody_type_template_transposed, psITS_fungaltraits_OTU)
+```
+
+#transpose, fix column names, remove rownames (ASVs), re-code as numeric:
+```{r}
+Fruitbody_type_template <- t(Fruitbody_type_template)
+
+colnames(Fruitbody_type_template) <- as.character(Fruitbody_type_template[1, ])
+Fruitbody_type_template <- as.data.frame(Fruitbody_type_template[-1, ])
+rownames(Fruitbody_type_template) <- NULL
+
+recode_numeric <- select(Fruitbody_type_template, -Fruitbody_type_template)
+recode_numeric <- data.frame(lapply(recode_numeric, as.numeric))
+
+Fruitbody_type_template <- bind_cols(Fruitbody_type_template$Fruitbody_type_template, recode_numeric)
+Fruitbody_type_template <- rename(Fruitbody_type_template, Fruitbody_type_template = "...1")
+```
+
+#collapse all duplicate values:
+```{r}
+metadata_Fruitbody_type_template_grouped <- Fruitbody_type_template %>%
+  group_by(Fruitbody_type_template) %>%
+  summarise(across(everything(), sum))
+```
+
+#Transpose, edit for later leftjoin:
+```{r}
+metadata_Fruitbody_type_template_grouped_t <- as.data.frame(t(metadata_Fruitbody_type_template_grouped))
+metadata_Fruitbody_type_template_grouped_t <- rownames_to_column(metadata_Fruitbody_type_template_grouped_t, var = "Sequencing_ID")
+```
+
+#check sums:
+```{r}
+checksums <- metadata_Fruitbody_type_template_grouped_t
+checksums <- checksums[-1,-1]
+checksums <- mutate(checksums, across(everything(), as.numeric))
+checksums <- mutate(checksums, traitsums = rowSums(across(everything())))
+
+checksums$traitsums
+```
+
+#export collapsed metadata:
+```{r}
+write_csv(metadata_Fruitbody_type_template_grouped_t, "Results/ITS_Functions_By_Sample/Fruitbody_type_template_by_sample_mip.csv", col_names = FALSE)
+```
+
+### 13: Hymenium_type_template
+
+#replace entire first row of OTU_table with Hymenium_type_template column of Taxa_table.csv, including heading.
+```{r}
+Hymenium_type_template_transposed <- t(psITS_fungaltraits_taxa$Hymenium_type_template)
+Hymenium_type_template_transposed <- as.data.frame(Hymenium_type_template_transposed)
+column_title <- as.data.frame(c("Hymenium_type_template"))
+Hymenium_type_template_transposed <- bind_cols(column_title, Hymenium_type_template_transposed)
+colnames(Hymenium_type_template_transposed) <- colnames(psITS_fungaltraits_OTU)
+psITS_fungaltraits_OTU <- data.frame(lapply(psITS_fungaltraits_OTU, as.character), stringsAsFactors = FALSE)
+Hymenium_type_template <- bind_rows(Hymenium_type_template_transposed, psITS_fungaltraits_OTU)
+```
+
+#transpose, fix column names, remove rownames (ASVs), re-code as numeric:
+```{r}
+Hymenium_type_template <- t(Hymenium_type_template)
+
+colnames(Hymenium_type_template) <- as.character(Hymenium_type_template[1, ])
+Hymenium_type_template <- as.data.frame(Hymenium_type_template[-1, ])
+rownames(Hymenium_type_template) <- NULL
+
+recode_numeric <- select(Hymenium_type_template, -Hymenium_type_template)
+recode_numeric <- data.frame(lapply(recode_numeric, as.numeric))
+
+Hymenium_type_template <- bind_cols(Hymenium_type_template$Hymenium_type_template, recode_numeric)
+Hymenium_type_template <- rename(Hymenium_type_template, Hymenium_type_template = "...1")
+```
+
+#collapse all duplicate values:
+```{r}
+metadata_Hymenium_type_template_grouped <- Hymenium_type_template %>%
+  group_by(Hymenium_type_template) %>%
+  summarise(across(everything(), sum))
+```
+
+#Transpose, edit for later leftjoin:
+```{r}
+metadata_Hymenium_type_template_grouped_t <- as.data.frame(t(metadata_Hymenium_type_template_grouped))
+metadata_Hymenium_type_template_grouped_t <- rownames_to_column(metadata_Hymenium_type_template_grouped_t, var = "Sequencing_ID")
+```
+
+#check sums:
+```{r}
+checksums <- metadata_Hymenium_type_template_grouped_t
+checksums <- checksums[-1,-1]
+checksums <- mutate(checksums, across(everything(), as.numeric))
+checksums <- mutate(checksums, traitsums = rowSums(across(everything())))
+
+checksums$traitsums
+```
+
+#export collapsed metadata:
+```{r}
+write_csv(metadata_Hymenium_type_template_grouped_t, "Results/ITS_Functions_By_Sample/Hymenium_type_template_by_sample_mip.csv", col_names = FALSE)
+```
+
+### 14: Ectomycorrhiza_exploration_type_template
+
+#replace entire first row of OTU_table with Ectomycorrhiza_exploration_type_template column of Taxa_table.csv, including heading.
+```{r}
+Ectomycorrhiza_exploration_type_template_transposed <- t(psITS_fungaltraits_taxa$Ectomycorrhiza_exploration_type_template)
+Ectomycorrhiza_exploration_type_template_transposed <- as.data.frame(Ectomycorrhiza_exploration_type_template_transposed)
+column_title <- as.data.frame(c("Ectomycorrhiza_exploration_type_template"))
+Ectomycorrhiza_exploration_type_template_transposed <- bind_cols(column_title, Ectomycorrhiza_exploration_type_template_transposed)
+colnames(Ectomycorrhiza_exploration_type_template_transposed) <- colnames(psITS_fungaltraits_OTU)
+psITS_fungaltraits_OTU <- data.frame(lapply(psITS_fungaltraits_OTU, as.character), stringsAsFactors = FALSE)
+Ectomycorrhiza_exploration_type_template <- bind_rows(Ectomycorrhiza_exploration_type_template_transposed, psITS_fungaltraits_OTU)
+```
+
+#transpose, fix column names, remove rownames (ASVs), re-code as numeric:
+```{r}
+Ectomycorrhiza_exploration_type_template <- t(Ectomycorrhiza_exploration_type_template)
+
+colnames(Ectomycorrhiza_exploration_type_template) <- as.character(Ectomycorrhiza_exploration_type_template[1, ])
+Ectomycorrhiza_exploration_type_template <- as.data.frame(Ectomycorrhiza_exploration_type_template[-1, ])
+rownames(Ectomycorrhiza_exploration_type_template) <- NULL
+
+recode_numeric <- select(Ectomycorrhiza_exploration_type_template, -Ectomycorrhiza_exploration_type_template)
+recode_numeric <- data.frame(lapply(recode_numeric, as.numeric))
+
+Ectomycorrhiza_exploration_type_template <- bind_cols(Ectomycorrhiza_exploration_type_template$Ectomycorrhiza_exploration_type_template, recode_numeric)
+Ectomycorrhiza_exploration_type_template <- rename(Ectomycorrhiza_exploration_type_template, Ectomycorrhiza_exploration_type_template = "...1")
+```
+
+#collapse all duplicate values:
+```{r}
+metadata_Ectomycorrhiza_exploration_type_template_grouped <- Ectomycorrhiza_exploration_type_template %>%
+  group_by(Ectomycorrhiza_exploration_type_template) %>%
+  summarise(across(everything(), sum))
+```
+
+#Transpose, edit for later leftjoin:
+```{r}
+metadata_Ectomycorrhiza_exploration_type_template_grouped_t <- as.data.frame(t(metadata_Ectomycorrhiza_exploration_type_template_grouped))
+metadata_Ectomycorrhiza_exploration_type_template_grouped_t <- rownames_to_column(metadata_Ectomycorrhiza_exploration_type_template_grouped_t, var = "Sequencing_ID")
+```
+
+#check sums:
+```{r}
+checksums <- metadata_Ectomycorrhiza_exploration_type_template_grouped_t
+checksums <- checksums[-1,-1]
+checksums <- mutate(checksums, across(everything(), as.numeric))
+checksums <- mutate(checksums, traitsums = rowSums(across(everything())))
+
+checksums$traitsums
+```
+
+#export collapsed metadata:
+```{r}
+write_csv(metadata_Ectomycorrhiza_exploration_type_template_grouped_t, "Results/ITS_Functions_By_Sample/Ectomycorrhiza_exploration_type_template_by_sample_mip.csv", col_names = FALSE)
+```
+
+### 15: Ectomycorrhiza_lineage_template
+
+#replace entire first row of OTU_table with Ectomycorrhiza_lineage_template column of Taxa_table.csv, including heading.
+```{r}
+Ectomycorrhiza_lineage_template_transposed <- t(psITS_fungaltraits_taxa$Ectomycorrhiza_lineage_template)
+Ectomycorrhiza_lineage_template_transposed <- as.data.frame(Ectomycorrhiza_lineage_template_transposed)
+column_title <- as.data.frame(c("Ectomycorrhiza_lineage_template"))
+Ectomycorrhiza_lineage_template_transposed <- bind_cols(column_title, Ectomycorrhiza_lineage_template_transposed)
+colnames(Ectomycorrhiza_lineage_template_transposed) <- colnames(psITS_fungaltraits_OTU)
+psITS_fungaltraits_OTU <- data.frame(lapply(psITS_fungaltraits_OTU, as.character), stringsAsFactors = FALSE)
+Ectomycorrhiza_lineage_template <- bind_rows(Ectomycorrhiza_lineage_template_transposed, psITS_fungaltraits_OTU)
+```
+
+#transpose, fix column names, remove rownames (ASVs), re-code as numeric:
+```{r}
+Ectomycorrhiza_lineage_template <- t(Ectomycorrhiza_lineage_template)
+
+colnames(Ectomycorrhiza_lineage_template) <- as.character(Ectomycorrhiza_lineage_template[1, ])
+Ectomycorrhiza_lineage_template <- as.data.frame(Ectomycorrhiza_lineage_template[-1, ])
+rownames(Ectomycorrhiza_lineage_template) <- NULL
+
+recode_numeric <- select(Ectomycorrhiza_lineage_template, -Ectomycorrhiza_lineage_template)
+recode_numeric <- data.frame(lapply(recode_numeric, as.numeric))
+
+Ectomycorrhiza_lineage_template <- bind_cols(Ectomycorrhiza_lineage_template$Ectomycorrhiza_lineage_template, recode_numeric)
+Ectomycorrhiza_lineage_template <- rename(Ectomycorrhiza_lineage_template, Ectomycorrhiza_lineage_template = "...1")
+```
+
+#collapse all duplicate values:
+```{r}
+metadata_Ectomycorrhiza_lineage_template_grouped <- Ectomycorrhiza_lineage_template %>%
+  group_by(Ectomycorrhiza_lineage_template) %>%
+  summarise(across(everything(), sum))
+```
+
+#Transpose, edit for later leftjoin:
+```{r}
+metadata_Ectomycorrhiza_lineage_template_grouped_t <- as.data.frame(t(metadata_Ectomycorrhiza_lineage_template_grouped))
+metadata_Ectomycorrhiza_lineage_template_grouped_t <- rownames_to_column(metadata_Ectomycorrhiza_lineage_template_grouped_t, var = "Sequencing_ID")
+```
+
+#check sums:
+```{r}
+checksums <- metadata_Ectomycorrhiza_lineage_template_grouped_t
+checksums <- checksums[-1,-1]
+checksums <- mutate(checksums, across(everything(), as.numeric))
+checksums <- mutate(checksums, traitsums = rowSums(across(everything())))
+
+checksums$traitsums
+```
+
+#export collapsed metadata:
+```{r}
+write_csv(metadata_Ectomycorrhiza_lineage_template_grouped_t, "Results/ITS_Functions_By_Sample/Ectomycorrhiza_lineage_template_by_sample_mip.csv", col_names = FALSE)
+```
+
+### 16: primary_photobiont
+
+#replace entire first row of OTU_table with primary_photobiont column of Taxa_table.csv, including heading.
+```{r}
+primary_photobiont_transposed <- t(psITS_fungaltraits_taxa$primary_photobiont)
+primary_photobiont_transposed <- as.data.frame(primary_photobiont_transposed)
+column_title <- as.data.frame(c("primary_photobiont"))
+primary_photobiont_transposed <- bind_cols(column_title, primary_photobiont_transposed)
+colnames(primary_photobiont_transposed) <- colnames(psITS_fungaltraits_OTU)
+psITS_fungaltraits_OTU <- data.frame(lapply(psITS_fungaltraits_OTU, as.character), stringsAsFactors = FALSE)
+primary_photobiont <- bind_rows(primary_photobiont_transposed, psITS_fungaltraits_OTU)
+```
+
+#transpose, fix column names, remove rownames (ASVs), re-code as numeric:
+```{r}
+primary_photobiont <- t(primary_photobiont)
+
+colnames(primary_photobiont) <- as.character(primary_photobiont[1, ])
+primary_photobiont <- as.data.frame(primary_photobiont[-1, ])
+rownames(primary_photobiont) <- NULL
+
+recode_numeric <- select(primary_photobiont, -primary_photobiont)
+recode_numeric <- data.frame(lapply(recode_numeric, as.numeric))
+
+primary_photobiont <- bind_cols(primary_photobiont$primary_photobiont, recode_numeric)
+primary_photobiont <- rename(primary_photobiont, primary_photobiont = "...1")
+```
+
+#collapse all duplicate values:
+```{r}
+metadata_primary_photobiont_grouped <- primary_photobiont %>%
+  group_by(primary_photobiont) %>%
+  summarise(across(everything(), sum))
+```
+
+#Transpose, edit for later leftjoin:
+```{r}
+metadata_primary_photobiont_grouped_t <- as.data.frame(t(metadata_primary_photobiont_grouped))
+metadata_primary_photobiont_grouped_t <- rownames_to_column(metadata_primary_photobiont_grouped_t, var = "Sequencing_ID")
+```
+
+#check sums:
+```{r}
+checksums <- metadata_primary_photobiont_grouped_t
+checksums <- checksums[-1,-1]
+checksums <- mutate(checksums, across(everything(), as.numeric))
+checksums <- mutate(checksums, traitsums = rowSums(across(everything())))
+
+checksums$traitsums
+```
+
+#export collapsed metadata:
+```{r}
+write_csv(metadata_primary_photobiont_grouped_t, "Results/ITS_Functions_By_Sample/primary_photobiont_by_sample_mip.csv", col_names = FALSE)
+```
+
+### 17: secondary_photobiont
+
+#replace entire first row of OTU_table with secondary_photobiont column of Taxa_table.csv, including heading.
+```{r}
+secondary_photobiont_transposed <- t(psITS_fungaltraits_taxa$secondary_photobiont)
+secondary_photobiont_transposed <- as.data.frame(secondary_photobiont_transposed)
+column_title <- as.data.frame(c("secondary_photobiont"))
+secondary_photobiont_transposed <- bind_cols(column_title, secondary_photobiont_transposed)
+colnames(secondary_photobiont_transposed) <- colnames(psITS_fungaltraits_OTU)
+psITS_fungaltraits_OTU <- data.frame(lapply(psITS_fungaltraits_OTU, as.character), stringsAsFactors = FALSE)
+secondary_photobiont <- bind_rows(secondary_photobiont_transposed, psITS_fungaltraits_OTU)
+```
+
+#transpose, fix column names, remove rownames (ASVs), re-code as numeric:
+```{r}
+secondary_photobiont <- t(secondary_photobiont)
+
+colnames(secondary_photobiont) <- as.character(secondary_photobiont[1, ])
+secondary_photobiont <- as.data.frame(secondary_photobiont[-1, ])
+rownames(secondary_photobiont) <- NULL
+
+recode_numeric <- select(secondary_photobiont, -secondary_photobiont)
+recode_numeric <- data.frame(lapply(recode_numeric, as.numeric))
+
+secondary_photobiont <- bind_cols(secondary_photobiont$secondary_photobiont, recode_numeric)
+secondary_photobiont <- rename(secondary_photobiont, secondary_photobiont = "...1")
+```
+
+#collapse all duplicate values:
+```{r}
+metadata_secondary_photobiont_grouped <- secondary_photobiont %>%
+  group_by(secondary_photobiont) %>%
+  summarise(across(everything(), sum))
+```
+
+#Transpose, edit for later leftjoin:
+```{r}
+metadata_secondary_photobiont_grouped_t <- as.data.frame(t(metadata_secondary_photobiont_grouped))
+metadata_secondary_photobiont_grouped_t <- rownames_to_column(metadata_secondary_photobiont_grouped_t, var = "Sequencing_ID")
+```
+
+#check sums:
+```{r}
+checksums <- metadata_secondary_photobiont_grouped_t
+checksums <- checksums[-1,-1]
+checksums <- mutate(checksums, across(everything(), as.numeric))
+checksums <- mutate(checksums, traitsums = rowSums(across(everything())))
+
+checksums$traitsums
+```
+
+#export collapsed metadata:
+```{r}
+write_csv(metadata_secondary_photobiont_grouped_t, "Results/ITS_Functions_By_Sample/secondary_photobiont_by_sample_mip.csv", col_names = FALSE)
+```
+

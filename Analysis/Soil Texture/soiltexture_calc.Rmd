@@ -1,0 +1,68 @@
+---
+title: "Assign_Soil_Texture_Class"
+author: "Glade Bogar"
+date: "2023-09-05"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+#install package 'soilassessment' if not already installed:
+```{r}
+install.packages('soilassessment')
+```
+
+```{r}
+
+install.packages("htmltools")
+```
+
+#load packages:
+```{r}
+library(tidyverse)
+packageVersion('tidyverse')
+
+library(soilassessment)
+packageVersion('soilassessment')
+
+library(soiltexture)
+packageVersion('soiltexture')
+```
+
+#load tidy soil texture data:
+```{r}
+soiltexture <- read_csv("../../TidyData/Brookside/Results/Soil_texture_Tidy_mip.csv")
+```
+
+#calculate soil texture classes, add to soiltexture:
+```{r}
+#new names for variables to comply with 'soiltexture' rules:
+soiltexture$CLAY_n <- soiltexture$clay_percent
+soiltexture$SILT_n <- soiltexture$silt_percent
+soiltexture$SAND_n <- soiltexture$sand_percent
+
+#subset data:
+texture_input <- select(soiltexture, CLAY_n, SILT_n, SAND_n)
+
+#assign texture classes
+textureclasses <- appendTextureclass(as.data.frame(texture_input), method = "USDA")
+
+#change TEXCLASS from factors to characters:
+textureclasses$TEXCLASS <- as.character(textureclasses$TEXCLASS)
+
+#Add TEXCLASS to soiltexture without joining:
+soiltexture$TextureClass <- textureclasses$TEXCLASS
+
+#remove duplicate data:
+soiltexture <- select(soiltexture, Sample_id, clay_percent, silt_percent, sand_percent, TextureClass)
+```
+
+#export soil texture data:
+```{r}
+write_csv(soiltexture, "Results/soiltexture_calc_mip.csv")
+```
+
+

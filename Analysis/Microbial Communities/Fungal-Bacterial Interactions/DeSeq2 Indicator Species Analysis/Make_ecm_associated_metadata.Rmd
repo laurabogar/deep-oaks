@@ -1,0 +1,45 @@
+---
+title: "Make_ecm_associated_metadata"
+output: html_document
+---
+
+#load required packages:
+```{r}
+library("tidyverse")
+```
+
+#load required data:
+```{r}
+metadata <- read.csv("../../../Carbon/Density_Corrected_C/Results/per_sample_metadata_Ccorrected_mip.csv")
+
+ps16S_ASVs_RNA_variable = read_rds("Results/ps16S_ASVs_RNA_variable_fromDeSeq2.rds")
+
+ps16S_metadata = read.csv("Results/ps16S_metadata_fromDeSeq2.csv")
+```
+
+#add relative abundances of ECM-associated ASVs to metadata:
+```{r}
+ps16S_metadata$ECM_associated_16S_percent <- sample_sums(ps16S_ASVs_RNA_variable)
+```
+
+#add imputed biomass (ECM ng/g) of ECM-assoicated ASVs (multiply relative abundances by total bacterial PLFA):
+```{r}
+ps16S_metadata <- mutate(ps16S_metadata, ECM_associated_16S_ng_g = ECM_associated_16S_percent * PLFA_Total_Bacteria_ng_g)
+```
+
+# Make "ECM_associated_biomass"; including ECM and their assoicated bacteria (combine ECM ng/g and ECM-associated 16S ASV ng/g):
+```{r}
+ps16S_metadata <- mutate(ps16S_metadata, ECM_associated_biomass = ECM_associated_16S_ng_g + ectomycorrhizal)
+```
+
+
+# add density-adjusted soil C data to ps16S metdata
+```{r}
+adjC = select(metadata, c(DO_ID, mass_C_Mg_per_ha))
+ps16S_metadata = left_join(ps16S_metadata, adjC)
+```
+
+#export complete metadata for Anna:
+```{r}
+write_csv(ps16S_metadata, "Results/metadata_with_ECMasssociated3trees_mip.csv")
+```

@@ -1,0 +1,223 @@
+---
+title: "DO_Remove_Low_Abundance_Reads_16S"
+author: "Glade Bogar"
+date: "2024-09-17"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#load libraries
+```{r}
+library("phyloseq")
+packageVersion("phyloseq")
+
+library("ggplot2")
+packageVersion("ggplot2")
+
+library("tidyverse")
+packageVersion("tidyverse")
+
+#install.packages('devtools')
+#library("devtools")
+#devtools::install_github("gauravsk/ranacapa")
+library("ranacapa")
+packageVersion("ranacapa")
+
+library("vegan")
+packageVersion("vegan")
+```
+
+#load 16S phyloseq object:
+```{r}
+ps16S <- read_rds("Results/ps16S.rds")
+```
+
+#histogram
+```{r}
+hist(sample_sums(ps16S))
+```
+
+#How deep are the samples?
+```{r}
+sort(sample_sums(ps16S))
+```
+
+#subset:
+```{r}
+psNegatives <- ps16S %>% subset_samples(Extraction_ID %in% c("D63-D",
+                                                         "Negative"))
+```
+
+#investigate:
+```{r}
+sort(sample_sums(psNegatives))
+```
+
+#Remove 0.01% reads (rounded up) of the shallowest 'real' sample (= 3).
+
+#load the original 16S phyloseq components.
+
+#load DADA2 output data:
+```{r}
+asv_table_16S <- readRDS("Results/ASV_Table_16S.rds")
+taxa_table_16S <- readRDS("Results/Taxa_Table_16S_species.rds")
+```
+
+#load metadata:
+```{r}
+metadata_16S <- read.csv("../../../TidyData/Metadata/Results/phyloseq_metadata_16S_mip.csv") #CRITICAL THAT YOU USE read.csv, NOT read_csv - BREAKS PHYLOSEQ SAMPLENAMES SOMEHOW
+metadata_16S_2 <- metadata_16S[,-1]
+rownames(metadata_16S_2) <- metadata_16S[,1]
+metadata_16S <- metadata_16S_2
+
+
+```
+
+
+#Now manually remove 3 reads from every observation in the ASV table:
+```{r}
+asv_table_16S_sub3 <- asv_table_16S - 3
+```
+
+#change every negative value to 0:
+```{r}
+asv_table_16S_sub3[asv_table_16S_sub3 < 0] <- 0
+```
+
+#re-create 16S phyloseq object:
+```{r}
+ps16S_sub3 <- phyloseq(otu_table(asv_table_16S_sub3, taxa_are_rows=FALSE), 
+               sample_data(metadata_16S), 
+               tax_table(taxa_table_16S))
+ps16S_sub3
+```
+
+#check the sample sums:
+```{r}
+sort(sample_sums(ps16S_sub3))
+```
+
+#remove taxa that have been removed entirely:
+```{r}
+ps16S_sub3
+ps16S_sub3 <- filter_taxa(ps16S_sub3, function(x) max(x) > 0, TRUE)
+ps16S_sub3
+```
+
+#create rarefction curve. save to ... /Phyloseq_16S/Results
+```{r}
+rarecurve_16S <- ggrare(ps16S_sub3, step = 1000, label = "Extraction_ID", se = FALSE)
+
+
+pdf(file = "Results/rarefaction16S_remove_3_reads_mip.pdf",
+    width = 12, # The width of the plot in inches
+    height = 6) # The height of the plot in inches
+
+rarecurve_16S
+
+dev.off()
+```
+
+# save rarefaction curve for use in supplementary figure 2
+```{r}
+saveRDS(rarecurve_16S, file = "Results/rarefaction_16S_mip.rds")
+```
+
+#Calculate NMDS:
+```{r}
+NMDS_16S <- ordinate(ps16S_sub3, 
+                    method = "NMDS", #Ordinate with NMDS
+                    distance = "bray", #Use Bray-Curtis distances
+                    trymax = 50) #Iterate 50 times
+```
+
+#Plot NMDS:
+```{r}
+plot_ordination(ps16S_sub3, #Designate phyloseq
+                NMDS_16S, #Designate NMDS
+                label = "Extraction_ID",
+                color = "core_top_depth_cm", #Color samples by variable
+                title = "Bacteria by Depth") +
+                theme_classic() #Set ggplot theme = classic
+```
+
+#negatives and positive control at least filter out, but should check on the read depth of 'D63-D'.
+
+#Plot NMDS:
+```{r}
+plot_ordination(ps16S_sub3, #Designate phyloseq
+                NMDS_16S, #Designate NMDS
+                label = "Extraction_ID",
+                color = "Tree", #Color samples by variable
+                title = "Bacteria by Tree") +
+                theme_classic() #Set ggplot theme = classic
+```
+
+#Plot NMDS:
+```{r}
+plot_ordination(ps16S_sub3, #Designate phyloseq
+                NMDS_16S, #Designate NMDS
+                label = "Extraction_ID",
+                color = "nucleic_acid", #Color samples by variable
+                title = "Bacteria by Nucleic Acid") +
+                theme_classic() #Set ggplot theme = classic
+```
+
+#Plot NMDS:
+```{r}
+plot_ordination(ps16S_sub3, #Designate phyloseq
+                NMDS_16S, #Designate NMDS
+                label = "Extraction_ID",
+                color = "pH_FM_CaCl2", #Color samples by variable
+                title = "Bacteria by pH") +
+                theme_classic() #Set ggplot theme = classic
+```
+
+
+#Plot NMDS:
+```{r}
+pdf(file = "Results/nmds_16S_trees_remove_3_reads.pdf",
+    width = 7, # The width of the plot in inches
+    height = 7) # The height of the plot in inches
+
+plot_ordination(ps16S_sub3, #Designate phyloseq
+                NMDS_16S, #Designate NMDS
+                label = "Extraction_ID",
+                color = "Tree",
+                title = "Bacteria by Tree") +
+                theme_classic() #Set ggplot theme = classic
+
+dev.off()
+```
+
+#Make a barchart
+
+#relativize
+```{r}
+ps16S_sub3_rel <- transform_sample_counts(ps16S_sub3, function(x){x / sum(x)})
+```
+
+#print, top 100 ASVs
+```{r}
+pdf(file = "Results/top100_bar_16S_remove_3_reads.pdf",
+    width = 10, # The width of the plot in inches
+    height = 10) # The height of the plot in inches
+
+TopNOTUs <- names(sort(taxa_sums(ps16S_sub3_rel), TRUE)[1:100])
+ps16S_100 = prune_taxa(TopNOTUs, ps16S_sub3_rel)
+plot_bar(ps16S_100, fill = "Phylum")
+
+dev.off()
+```
+
+#Save phyloseq object:
+```{r}
+write_rds(ps16S_sub3, "Results/ps16S_remove_3_reads.rds")
+```
+
+
+
+

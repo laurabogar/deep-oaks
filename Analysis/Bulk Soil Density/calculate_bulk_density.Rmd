@@ -1,0 +1,82 @@
+---
+title: "calculate_bulk_density"
+author: "Glade Bogar"
+date: "2024-02-29"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#calculate bulk density
+
+#load required packages:
+```{r}
+library(tidyverse)
+```
+
+#load data:
+```{r}
+
+sample_mass <- read_csv("../../TidyData/Sampling/Results/sample_data_tidy_mip.csv")
+moisture <- read_csv("../Soil Moisture/Results/soilmoisture_calc_mip.csv")
+sample_name <- read_csv("../../Data/DO_Sample_Names.csv")
+```
+
+#join data:
+```{r}
+sample_mass <- rename(sample_mass, Sample_ID...3 = Sample_ID) 
+bulk_density <- left_join(sample_name, sample_mass, by = "Sample_ID...3")
+moisture <- rename(moisture, Sample_id = Sample_ID)
+bulk_density <- left_join(bulk_density, moisture, by = "Sample_id")
+```
+
+
+#core volume was measured as 10.16 cm diameter, 7.62 cm depth. 617cm^3 total
+```{r}
+bulk_density$soil_volume_cm3 <- 617
+```
+
+#take away plastic bag weight 15g
+```{r}
+bulk_density <- mutate(bulk_density, Wet_mass_of_core_g = Wet_mass_of_core_g_plus_bag_15g -15)
+```
+
+#correct soil mass:
+```{r}
+
+bulk_density <- mutate(bulk_density, dry_mass_of_core_g = Wet_mass_of_core_g * FM_OD_correction)
+```
+#Rename notes
+```{r}
+bulk_density <- bulk_density %>%
+  rename(bulk_density_notes = `Sample_Notes`)
+```
+
+#calculate bulk density:
+```{r}
+bulk_density$bulk_density_g_cm3 <- (bulk_density$dry_mass_of_core_g) / bulk_density$soil_volume_cm3
+```
+#remove rows bulk density is in question
+#T07-37-45 T04-30-37 T04-37-45
+```{r}
+bulk_density <-  bulk_density[c(-36, -18, -17), ]
+
+```
+#select bulk density:
+```{r}
+bulk_density <- dplyr::select(bulk_density, DO_ID, bulk_density_g_cm3, bulk_density_notes)
+```
+#export bulk density:
+```{r}
+write_csv(bulk_density, "Results/bulk_density_mip.csv")
+```
+
+
+
+
+
+
+
+

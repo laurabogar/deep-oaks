@@ -1,0 +1,60 @@
+---
+title: "Supplementary_Figure_2"
+output: html_document
+---
+
+```{r}
+library(cowplot)
+```
+
+# load in rarefaction curves as .rds objects
+```{r}
+rarecurve_16S = readRDS("../../Analysis/Microbial Communities/Phyloseq_16S/Results/rarefaction_16S_mip.rds") + 
+  theme(plot.margin = margin(25, 5.5, 5.5, 25))
+rarecurve_ITS = readRDS("../../Analysis/Microbial Communities/Phyloseq_ITS/Results/rarefaction_ITS_mip.rds") + 
+  theme(plot.margin = margin(25, 5.5, 5.5, 25))
+```
+
+# panel the ITS and 16S rarefaction curves together
+```{r}
+supFig2_paneled <- plot_grid(rarecurve_16S, rarecurve_ITS, ncol = 1, labels = c("16S", "ITS"), label_y = 1.01)
+supFig2_paneled
+```
+
+# save figure
+```{r}
+ggsave(plot = supFig2, filename = ("Results/sup_fig_2_rarefaction.pdf"), device = "pdf", height = 9, width = 15, units = "in") # in results 
+
+ggsave(plot = supFig2, filename = ("../../Reports/Supplementary Material/Figures/sup_fig_2_rarefaction.pdf"), device = "pdf", height = 9, width = 15, units = "in") # in Reports
+```
+
+# add margins
+```{r}
+supfig2_margins = ggdraw() + draw_plot(supFig2_paneled, 
+                                       x = 0.05, # position figure to the right
+                                       y = 0.05, # positition figure near the bottom
+                                       width = 0.9,
+                                       height = 0.95)
+supfig2_margins
+```
+# add caption
+```{r}
+caption = ggdraw() +
+  draw_label("Supplementary Figure 2. Rarefaction curves for 16S and ITS metabarcoding data. 'Species Richness' refers to number of unique ASVs observed in a single sample after quality-control trimming
+(removed 3 reads from all 16S ASVs, 8 reads from all ITS ASVs).", size = 12, hjust = 0.5)
+
+supfig2_caption = plot_grid(caption, supfig2_margins,
+                            ncol = 1,
+                            rel_heights = c(0.1, 1))
+
+supfig2_caption
+```
+
+# save figure
+```{r}
+ggsave(plot = supfig2_caption, filename = ("Results/sup_fig_2_rarefaction_formatted.pdf"), device = "pdf", height = 9, width = 15, units = "in") # in results 
+
+ggsave(plot = supfig2_caption, filename = ("../../Reports/Supplementary Material/Figures/sup_fig_2_rarefaction_formatted.pdf"), device = "pdf", height = 9, width = 15, units = "in") # in Reports
+```
+
+

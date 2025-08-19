@@ -1,0 +1,221 @@
+---
+title: "DO_Remove_Low_Abundance_Reads_ITS"
+author: "Glade Bogar"
+date: "2024-09-17"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#load libraries
+```{r}
+library("phyloseq")
+packageVersion("phyloseq")
+
+library("ggplot2")
+packageVersion("ggplot2")
+
+library("tidyverse")
+packageVersion("tidyverse")
+
+#install.packages('devtools')
+#library("devtools")
+#devtools::install_github("gauravsk/ranacapa")
+library("ranacapa")
+packageVersion("ranacapa")
+
+library("vegan")
+packageVersion("vegan")
+```
+
+#load ITS phyloseq object:
+```{r}
+psITS <- read_rds("Results/psITS.rds")
+```
+
+#histogram
+```{r}
+hist(sample_sums(psITS))
+```
+
+#How deep are the samples?
+```{r}
+sort(sample_sums(psITS))
+```
+
+#Let's try something very permissive - 0.01% of the shallowest real sample.
+
+#How deep are the samples?
+```{r}
+sort(sample_sums(psITS))
+```
+
+#Remove 0.01% reads (rounded up) of the shallowest 'real' sample (= 8).
+
+#load DADA2 output data:
+```{r}
+asv_table_ITS <- readRDS("Results/ASV_Table_ITS.rds")
+taxa_table_ITS <- readRDS("Results/Taxa_Table_ITS.rds")
+```
+
+#load metadata:
+```{r}
+metadata_ITS <- read.csv("../../../TidyData/Metadata/Results/phyloseq_metadata_ITS_mip.csv") #CRITICAL THAT YOU USE read.csv, NOT read_csv - BREAKS PHYLOSEQ SAMPLENAMES SOMEHOW
+metadata_ITS_2 <- metadata_ITS[,-1]
+rownames(metadata_ITS_2) <- metadata_ITS[,1]
+metadata_ITS <- metadata_ITS_2
+```
+
+#load DADA2 output data:
+
+#Now manually remove 8 reads from every observation in the ASV table:
+```{r}
+asv_table_ITS_sub8 <- asv_table_ITS - 8
+```
+
+#change every negative value to 0:
+```{r}
+asv_table_ITS_sub8[asv_table_ITS_sub8 < 0] <- 0
+```
+
+#re-create ITS phyloseq object:
+```{r}
+psITS_sub8 <- phyloseq(otu_table(asv_table_ITS_sub8, taxa_are_rows=FALSE), 
+               sample_data(metadata_ITS), 
+               tax_table(taxa_table_ITS))
+psITS_sub8
+```
+
+#check the sample sums:
+```{r}
+sort(sample_sums(psITS_sub8))
+```
+
+#remove low read samples:
+```{r}
+#psITS_sub8
+#psITS_sub8 <- subset_samples(psITS_sub8, sample_sums(psITS_sub8) > 3000)
+#psITS_sub8
+```
+
+#remove taxa that have been removed entirely:
+```{r}
+psITS_sub8
+psITS_sub8 <- filter_taxa(psITS_sub8, function(x) max(x) > 0, TRUE)
+psITS_sub8
+```
+
+#create rarefction curve:
+```{r}
+rarecurve_ITS <- ggrare(psITS_sub8, step = 1000, label = "Extraction_ID", se = FALSE)
+
+pdf(file = "Results/rarefactionITS_remove_8_reads_mip.pdf",
+    width = 12, # The width of the plot in inches
+    height = 6) # The height of the plot in inches
+
+
+rarecurve_ITS
+
+dev.off()
+```
+
+# save rarefaction curve for use in supplementary figure 2
+```{r}
+saveRDS(rarecurve_ITS, file = "Results/rarefaction_ITS_mip.rds")
+```
+
+
+#Calculate NMDS:
+```{r}
+NMDS_ITS <- ordinate(psITS_sub8, 
+                    method = "NMDS", #Ordinate with NMDS
+                    distance = "bray", #Use Bray-Curtis distances
+                    trymax = 50) #Iterate 50 times
+```
+
+#Plot NMDS:
+```{r}
+plot_ordination(psITS_sub8, #Designate phyloseq
+                NMDS_ITS, #Designate NMDS
+                label = "Extraction_ID",
+                color = "core_top_depth_cm", #Color samples by variable
+                title = "Fungi by Depth") +
+                theme_classic() #Set ggplot theme = classic
+```
+
+#Plot NMDS:
+```{r}
+plot_ordination(psITS_sub8, #Designate phyloseq
+                NMDS_ITS, #Designate NMDS
+                label = "Extraction_ID",
+                color = "Tree", #Color samples by variable
+                title = "Fungi by Tree") +
+                theme_classic() #Set ggplot theme = classic
+```
+
+#Plot NMDS:
+```{r}
+plot_ordination(psITS_sub8, #Designate phyloseq
+                NMDS_ITS, #Designate NMDS
+                label = "Extraction_ID",
+                color = "nucleic_acid", #Color samples by variable
+                title = "Fungi by Nucleic Acid") +
+                theme_classic() #Set ggplot theme = classic
+```
+
+
+#Plot NMDS:
+```{r}
+plot_ordination(psITS_sub8, #Designate phyloseq
+                NMDS_ITS, #Designate NMDS
+                label = "Extraction_ID",
+                color = "pH_FM_CaCl2", #Color samples by variable
+                title = "Fungi by pH") +
+                theme_classic() #Set ggplot theme = classic
+```
+
+#Plot NMDS:
+```{r}
+pdf(file = "Results/nmds_ITS_trees_remove_8_reads_mip.pdf",
+    width = 7, # The width of the plot in inches
+    height = 7) # The height of the plot in inches
+
+plot_ordination(psITS_sub8, #Designate phyloseq
+                NMDS_ITS, #Designate NMDS
+                label = "Extraction_ID",
+                color = "Tree",
+                title = "Fungi by Tree") +
+                theme_classic() #Set ggplot theme = classic
+
+dev.off()
+```
+
+
+#relativize
+```{r}
+psITS_sub8_rel <- transform_sample_counts(psITS_sub8, function(x){x / sum(x)})
+```
+
+#top 100
+```{r}
+pdf(file = "Results/top100_bar_remove_8_reads_mip.pdf",
+    width = 10, # The width of the plot in inches
+    height = 10) # The height of the plot in inches
+
+TopNOTUs <- names(sort(taxa_sums(psITS_sub8_rel), TRUE)[1:100])
+psITS_100 = prune_taxa(TopNOTUs, psITS_sub8_rel)
+plot_bar(psITS_100, fill = "Phylum")
+
+dev.off()
+```
+
+#Save phyloseq object:
+```{r}
+write_rds(psITS_sub8, "Results/psITS_remove_8_reads.rds")
+```
+
+
+
+

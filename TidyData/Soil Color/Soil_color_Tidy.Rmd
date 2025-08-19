@@ -1,0 +1,61 @@
+---
+title: "Color_Tidy"
+output: html_document
+date: "2024-09-19"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+ 
+#load packages:
+```{r}
+library(tidyverse)
+```
+
+#load data:
+```{r}
+soil_color <- read_csv("../../Data/Transcribed data/Colors/DO_Color_Transcribed.csv")
+Names <- read_csv("../../Data/DO_sample_names.csv")
+```
+# Create new columns for Value and Chroma based on moisture condition
+```{r}
+
+soil_color_wide <- soil_color %>%
+  # Separate into two columns: one for wet and one for dry
+  pivot_wider(names_from = Moisture,
+              values_from = c(Value, Chroma),
+              names_prefix = "",
+              names_sep = "_") %>%
+  # Rename columns to make them more readable
+  rename(Value_wet = Value_Wet,
+         Value_dry = Value_Dry,
+         Chroma_wet = Chroma_Wet,
+         Chroma_dry = Chroma_Dry)
+```
+
+
+#Rename for compatibility
+```{r}
+soil_color_wide <- soil_color_wide %>%
+  rename(Sample_id = `Sample ID`)
+
+soil_color_Tidy <- soil_color_wide %>%
+  rename(notes_color = `Notes`)
+```
+
+# Correct the Sample_id of a mislabled sample
+```{r}
+# A row with Sample_id = T02_37.5_45 includes the note: "Likely mislabeled - given color, texture, root fragments, probably actually 7.5-15.0 cm"
+# Change the Sample_id from T02_37.5_45 to T02_7.5_15
+rownum = which(soil_color_Tidy$notes_color == "Likely mislabeled - given color, texture, root fragments, probably actually 7.5-15.0 cm")
+
+soil_color_Tidy[rownum, 1] = "T02_7.5_15"
+soil_color_Tidy[rownum, 3] = "Sample ID altered during data tidy. Physical sample was likely mislabeled - originally labled 'T02_37.5_45', but given color, texture, root fragments, probably actually 7.5-15.0 cm"
+```
+
+
+#export
+```{r}
+write_csv(soil_color_Tidy, "Results/soil_color_Tidy_mip.csv")
+```

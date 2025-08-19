@@ -1,0 +1,49 @@
+---
+title: "Soil_pH_Tidy.Rmd"
+output: html_document
+date: "2024-09-12"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#load and check tidyverse package version:
+```{r}
+library(tidyverse)
+packageVersion('tidyverse')
+```
+#update tidyverse (if not just installed):
+```{r}
+tidyverse _update()
+```
+#Load csv's from multiple sheets
+```{r}
+Soil_pH_T03_T04 <- read_csv("../../Data/Transcribed data/pH/20230523_160933.csv")
+Soil_pH_T02 <- read_csv("../../Data/Transcribed data/pH/230510 Deep oaks Soil pH data sheet • Bogar Lab.csv")
+Soil_pH_T05_T06_T07 <- read_csv("../../Data/Transcribed data/pH/300523 Soil pH_.csv")
+```
+#bind the csv's together
+```{r}
+pH_complete <- bind_rows(Soil_pH_T02, Soil_pH_T03_T04, Soil_pH_T05_T06_T07)
+```
+#Rename notes section
+```{r}
+pH_complete_Tidy <- pH_complete %>%
+  rename(notes_pH = `Notes`)
+```
+#change variables that are not supposed to be doubles into characters
+```{r}
+pH_complete_Tidy$date_pH <- as.character(pH_complete_Tidy$date_pH)
+
+```
+# Replace spaces, dashes, and commas with underscores
+```{r}
+pH_complete_Tidy <- pH_complete_Tidy %>%
+  mutate(Sample_ID = str_replace_all(Sample_ID, "-", "_"))
+
+```
+#export cleaned data:
+```{r}
+write_csv(pH_complete_Tidy, "Results/Soil_pH_Tidy_mip.csv")
+```

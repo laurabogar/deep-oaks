@@ -1,0 +1,67 @@
+---
+title: "Untitled"
+output: html_document
+date: "2024-09-11"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#load and check tidyverse package version:
+```{r}
+library(tidyverse)
+packageVersion('tidyverse')
+```
+#update tidyverse (if not just installed):
+```{r}
+tidyverse_update()
+```
+
+#Load csv's from multiple sheets
+```{r}
+Moisture_T03_corrected <- read_csv("../../Data/Transcribed data/Moisture/2nd Deep Oaks Soil Moisture.csv")
+Moisture_T03_T04 <- read_csv("../../Data/Transcribed data/Moisture/20230531 T03 T04 Soil Moisture.csv")
+Moisture_T02 <- read_csv("../../Data/Transcribed data/Moisture/230510 Soil Moisture Data sheet.csv")
+Moisture_T05_T06_T07 <- read_csv("../../Data/Transcribed data/Moisture/D0-T05-7 Soil Moisture.csv")
+```
+#bind the csv's together
+```{r}
+Moisture_complete <- bind_rows(Moisture_T02, Moisture_T03_corrected, Moisture_T03_T04, Moisture_T05_T06_T07)
+```
+
+#Omit repeat Sample_IDs, particularly T03-30-37.5 and T03-37.4-45, Keep the versions with the most complete data sets
+```{r}
+Moisture_complete_Tidy <- Moisture_complete %>%
+  filter(!is.na(OD_soil_plus_tin_mass_g))
+
+```
+# Replace spaces, dashes, and commas with underscores
+```{r}
+Moisture_complete_Tidy <- Moisture_complete_Tidy %>%
+  mutate(Sample_ID = str_replace_all(Sample_ID, "-", "_"))
+
+```
+
+#Rename notes section
+```{r}
+Moisture_complete_Tidy <- Moisture_complete_Tidy %>%
+  rename(weigher = `Notes`)
+```
+
+```{r}
+Moisture_complete_Tidy <- Moisture_complete_Tidy %>%
+  rename(notes_moisture = `notes 5:05pm 10/13/23`)
+```
+
+#remove extra columns
+```{r}
+Moisture_complete_Tidy <- Moisture_complete_Tidy %>%
+  select(!starts_with(".."))
+```
+
+
+#export cleaned data:
+```{r}
+write_csv(Moisture_complete_Tidy, "Results/Soil_moisture_Tidy_mip.csv")
+```

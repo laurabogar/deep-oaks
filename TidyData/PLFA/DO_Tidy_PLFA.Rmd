@@ -1,0 +1,117 @@
+---
+title: "DO_Tidy_PLFA"
+author: "Glade Bogar"
+date: "2024-09-30"
+output: html_document
+---
+
+#Load required packages:
+```{r}
+library(tidyverse)
+```
+
+#Load required data:
+```{r}
+PLFA <- read_csv("../../Data/PLFA/98477_20240820_Biological_Linked_20240927_204100.csv")
+```
+#rename columns:
+```{r}
+PLFA <- rename(PLFA,
+               DO_ID = "Sample ID 1",
+               PLFA_Total_Living_Microbial_Biomass_ng_g = "Total Living Microbial Biomass ng/g",
+               PLFA_Total_Bacteria_ng_g = "Total Bacteria ng/g",
+               PLFA_Total_Bacteria_Percent_of_Total_Biomass = "Total Bacteria % of Total Biomass",
+               PLFA_Gram_Plus_Bacteria_ng_g = "Gram (+) ng/g",
+               PLFA_Gram_Plus_Bacteria_Percent_of_Total_Biomass = "Gram (+) % of Total Biomass",
+               PLFA_Actinobacteria_ng_g = "Actinomycetes ng/g",
+               PLFA_Actinobacteria_Percent_of_Total_Biomass = "Actinomycetes % of Total Biomass",
+               PLFA_Gram_Negative_Bacteria_ng_g = "Gram (-) ng/g",
+               PLFA_Gram_Negative_Bacteria_Percent_of_Total_Biomass = "Gram (-) % of Total Biomass",
+               PLFA_Total_Fungi_ng_g = "Total Fungi ng/g",
+               PLFA_Arbuscular_Mycorrhizal_Fungi_ng_g = "Arbuscular Mycorrhizal ng/g", #strangely, %AMF is missing
+               PLFA_Saprotrophic_Fungi_Percent_of_Total_Biomass = "Saprophytes % of Total Biomass",
+               PLFA_Saprotrophic_Fungi_ng_g = "Saprophytes ng/g",
+               PLFA_Protozoa_Percent_of_Total_Biomass = "Protozoa % of Total Biomass",
+               PLFA_Protozoa_ng_g = "Protozoa ng/g",
+               PLFA_Undifferentiated_Percent_of_Total_Biomass = "Undifferentiated % of Total Biomass",
+               PLFA_Undifferentiated_ng_g = "Undifferentiated ng/g",
+               PLFA_Fungi_Bacteria_Ratio_ng_g = "Fungi:Bacteria ng/g",
+               PLFA_Predator_Prey_Ratio_ng_g = "Predator:Prey ng/g",
+               PLFA_Gram_Positive_Gram_Negative_Ratio_ng_g = "Gram(+):Gram(-) ng/g",
+               PLFA_Saturated_Unsaturated_Ratio_ng_g = "Saturated:Unsaturated ng/g",
+               PLFA_Monounsaturated_Polyunsaturated_Ratio_ng_g = "Monounsaturated:Polyunsaturated ng/g"
+)
+```
+
+#Select columns:
+```{r}
+PLFA <- select(PLFA,
+               DO_ID,
+               PLFA_Total_Living_Microbial_Biomass_ng_g,
+               PLFA_Total_Bacteria_ng_g,
+               PLFA_Total_Bacteria_Percent_of_Total_Biomass,
+               PLFA_Gram_Plus_Bacteria_ng_g,
+               PLFA_Gram_Plus_Bacteria_Percent_of_Total_Biomass,
+               PLFA_Actinobacteria_ng_g,
+               PLFA_Actinobacteria_Percent_of_Total_Biomass,
+               PLFA_Gram_Negative_Bacteria_ng_g,
+               PLFA_Gram_Negative_Bacteria_Percent_of_Total_Biomass,
+               PLFA_Total_Fungi_ng_g,
+               PLFA_Arbuscular_Mycorrhizal_Fungi_ng_g,
+               PLFA_Saprotrophic_Fungi_Percent_of_Total_Biomass,
+               PLFA_Saprotrophic_Fungi_ng_g,
+               PLFA_Protozoa_Percent_of_Total_Biomass,
+               PLFA_Protozoa_ng_g,
+               PLFA_Undifferentiated_Percent_of_Total_Biomass,
+               PLFA_Undifferentiated_ng_g,
+               PLFA_Fungi_Bacteria_Ratio_ng_g,
+               PLFA_Predator_Prey_Ratio_ng_g,
+               PLFA_Gram_Positive_Gram_Negative_Ratio_ng_g,
+               PLFA_Saturated_Unsaturated_Ratio_ng_g,
+               PLFA_Monounsaturated_Polyunsaturated_Ratio_ng_g)
+
+#note: omitting some columns I have no current use for.
+
+```
+
+#Remove NA-rows:
+```{r}
+PLFA <- na.omit(PLFA)
+```
+
+#Fix DO_ID:
+```{r}
+PLFA$DO_ID <- str_replace(PLFA$DO_ID, "-", "_")
+PLFA$DO_ID <- str_replace(PLFA$DO_ID, "-", "_") #first two only
+
+PLFA$DO_ID <- str_replace_all(PLFA$DO_ID, "37-5", "37.5")
+
+PLFA$DO_ID <- str_replace_all(PLFA$DO_ID, "102", "T02")
+```
+
+#export tidy data:
+```{r}
+write_csv(PLFA, "Results/PLFA_tidy_mip.csv")
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,113 @@
+---
+title: "DO_Make_Metadata_for_phyloseq"
+author: "Glade Bogar"
+date: "2024-09-23"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+#Load required packages:
+```{r}
+library(tidyverse)
+packageVersion('tidyverse')
+
+library(phyloseq)
+packageVersion('phyloseq')
+```
+
+#Load required data:
+```{r}
+ps16S <- read_rds("../../Analysis/Microbial Communities/Phyloseq_16S/Results/ps16S_remove_3_reads.rds")
+psITS <- read_rds("../../Analysis/Microbial Communities/Phyloseq_ITS/Results/psITS_remove_8_reads_fungaltraits.rds")
+sample_metadata <- read_csv("Results/per_sample_metadata_mip.csv")
+amplification <- read_csv("../RNA-DNA Extractions/Results/barcodes_tidy_mip.csv")
+extraction <- read_csv("../RNA-DNA Extractions/Results/nucleic_acid_extractions_for_library_prep_tidy_mip.csv")
+```
+
+#tidy the extraction dataset, which we're using only to link the sample IDs to the extraction IDs: 
+```{r}
+#filter out unused samples
+extraction <- filter(extraction, Extraction_ID != "NA")
+#select only relevant ID columns
+extraction <- select(extraction, c(Extraction_ID, DO_ID, date_collected))
+```
+
+
+```{r}
+"DO_ID" %in% colnames(extraction)
+"DO_ID" %in% colnames(amplification)
+
+head(phyloseq_metadata)
+```
+
+
+#link extraction ID to barcode pairings 
+```{r}
+# join by extraction ID
+amplification_metadata <- full_join(amplification, extraction, by = "Extraction_ID")
+```
+
+#Join and separate 16S, ITS samples:
+```{r}
+phyloseq_metadata <- left_join(amplification_metadata, sample_metadata, by = "DO_ID")
+
+phyloseq_metadata_16S <- filter(phyloseq_metadata, amplification == "PCR_16S")
+phyloseq_metadata_ITS <- filter(phyloseq_metadata, amplification == "PCR_ITS") 
+```
+
+#Get the current phyloseq object sample names:
+```{r}
+ps16S_sample_names <- as.data.frame(sample_names(ps16S))
+ps16S_sample_names <- rename(ps16S_sample_names, phyloseq_name = "sample_names(ps16S)")
+
+psITS_sample_names <- as.data.frame(sample_names(psITS))
+psITS_sample_names <- rename(psITS_sample_names, phyloseq_name = "sample_names(psITS)")
+```
+
+#Recreate these sample names as a column in metadata files:
+```{r}
+phyloseq_metadata_16S$phyloseq_name <- str_c("DO_",phyloseq_metadata_16S$REV_barcode,"_",phyloseq_metadata_16S$FWD_barcode,"_R1.fastq.gz")
+phyloseq_metadata_ITS$phyloseq_name <- str_c("DO_",phyloseq_metadata_ITS$REV_barcode,"_",phyloseq_metadata_ITS$FWD_barcode,"_R1.fastq.gz")
+```
+
+#Left join to phyloseq names:
+```{r}
+phyloseq_metadata_16S <- left_join(ps16S_sample_names, phyloseq_metadata_16S)
+phyloseq_metadata_ITS <- left_join(psITS_sample_names, phyloseq_metadata_ITS)
+```
+
+#Write phyloseq metadata:
+```{r}
+write_csv(phyloseq_metadata_16S, "Results/phyloseq_metadata_16S_mip.csv")
+write_csv(phyloseq_metadata_ITS, "Results/phyloseq_metadata_ITS_mip.csv")
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

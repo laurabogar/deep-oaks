@@ -1,0 +1,48 @@
+---
+title: "Density_Corrected_C"
+author: "Glade Bogar"
+date: "2024-10-29"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#load required packages:
+```{r}
+library(tidyverse)
+```
+
+#load required data:
+```{r}
+metadata <- read_csv("../../../TidyData/Metadata/Results/per_sample_metadata_mip.csv")
+```
+# Get a density-correct value of kg C/m2 soil in the per_sample_metadata
+
+#add soil_depth_cm variable (would calculate but it's defined to be 7.5 cm):
+```{r}
+metadata$soil_depth_cm <- 7.5
+```
+
+#calculate g carbon per cm^3 of soil:
+```{r}
+metadata <- mutate(metadata, mass_C_g_per_cm3_soil = bulk_density_g_cm3 * (carbon_percent/100))
+```
+
+#calculate kg carbon per m^3 of soil:
+```{r}
+metadata <- mutate(metadata, mass_C_kg_per_m2_soil = (mass_C_g_per_cm3_soil * soil_depth_cm * 100 * 100)/1000)
+```
+
+#calculate metric tons (Mg) carbon in each depth fraction per hectare:
+```{r}
+metadata <- mutate(metadata, mass_C_Mg_per_ha = (mass_C_kg_per_m2_soil * 10000 / 1000))
+```
+
+```{r}
+write_csv(metadata, "Results/per_sample_metadata_Ccorrected_mip.csv")
+```
+
+
+

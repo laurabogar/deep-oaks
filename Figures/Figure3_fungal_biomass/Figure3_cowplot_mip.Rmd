@@ -1,0 +1,182 @@
+---
+title: "Figure 3"
+author: "Anna Goodman"
+date: "2024-11-11"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+# load packages
+```{r}
+library(tidyverse)
+library(cowplot)
+```
+
+# load data
+```{r}
+imputed_biomass <- read.csv("../../Analysis/Microbial Communities/Imputed Biomass/Results/RNA_based_fungal_trait_biomass_mip.csv")
+```
+
+# aglomorate biomasses of plant pathogens and saprotrophs
+```{r}
+imputed_biomass <- mutate(imputed_biomass, mass_saprotrophs_plant_pathogens = dung_saprotroph +
+                               litter_saprotroph +
+                               nectar.tap_saprotroph +
+                               plant_pathogen +
+                               pollen_saprotroph +
+                               soil_saprotroph +
+                               sooty_mold +
+                               unspecified_saprotroph +
+                               wood_saprotroph) # add column to imputed_biomass with each sample's mass sum of saprotrophs and plant pathogens
+```
+
+# aglomorate biomasses of fungi from all other assigned lifestyles except for ectomycorrhizal fungi
+```{r}
+imputed_biomass <- mutate(imputed_biomass, other = algal_parasite + 
+                        animal_parasite +
+                        epiphyte + 
+                        lichen_parasite + 
+                        protistan_parasite +
+                        unspecified +
+                        arbuscular_mycorrhizal +
+                        foliar_endophyte +
+                        lichenized +
+                        moss_symbiont +
+                        root_endophyte +
+                        mycoparasite) # add column to imputed_biomass with each sample's mass sum of other named lifestyles, excluding ectomycorrhizae
+```
+
+### double-check that these aglomerated mass sums still add up to the total fungal biomass in each sample
+```{r}
+aglom_totals = mutate(imputed_biomass, sumtotal = ectomycorrhizal +
+                        mass_saprotrophs_plant_pathogens +
+                        NA. +
+                        other)
+aglom_totals = select(aglom_totals, c(sumtotal, PLFA_Total_Fungi_ng_g))
+#View(aglom_totals)
+```
+
+
+# tidy and reformat the dataframe for ggplot
+```{r} 
+imputed_biomass = select(imputed_biomass, c(ectomycorrhizal, mass_saprotrophs_plant_pathogens, NA., other, PLFA_Total_Fungi_ng_g, core_bottom_depth_cm, Tree_Health, DO_ID)) # select only variables used in the plot
+
+imputed_biomass = dplyr::rename(imputed_biomass, "Ectomycorrhizal fungi" = ectomycorrhizal, "Plant pathogens and saprotrophs" = mass_saprotrophs_plant_pathogens, "All other lifestyles" = other, "Unknown lifestyle" = NA., "TOTAL fungal biomass" = PLFA_Total_Fungi_ng_g) # rename response variables for clarity in the display
+
+imputed_biomass = pivot_longer(imputed_biomass, 1:5, names_to = "Primary Lifestyle", values_to = "biomass") # make primary lifestyle a single categorical variable
+
+imputed_biomass$'Primary Lifestyle' <- factor(imputed_biomass$'Primary Lifestyle', levels=c('TOTAL fungal biomass', 'Ectomycorrhizal fungi', 'Plant pathogens and saprotrophs', 'Unknown lifestyle', 'All other lifestyles')) # order primary lifestyles to appear logically in the legend
+```
+
+
+# make figure 3
+```{r}
+manual_colors = c('TOTAL fungal biomass' = "black", 
+                  'Ectomycorrhizal fungi' = "#C87A8A",
+                  'Plant pathogens and saprotrophs' = "#A29048",
+                  'Unknown lifestyle' = "#00A396",
+                  'All other lifestyles' = "#9189C7") # assign colors to primary lifestyles
+
+fig3 = ggplot(imputed_biomass, aes(x = core_bottom_depth_cm, y = biomass, color = `Primary Lifestyle`)) + 
+    geom_smooth(method='loess', se = FALSE) + 
+   geom_point(size = 2) +
+   facet_wrap(~Tree_Health) + 
+    ylab("Imputed biomass (ng PLFA/g soil)") +
+    xlab("Core bottom depth (cm)") +
+    xlim(7, NA) +
+    ylim(-10, 1200) + theme_classic(base_size = 7) +
+    scale_color_manual(values = manual_colors) +  
+    theme(legend.title=element_blank(), 
+        legend.box.background = element_rect(color="black"),
+        legend.box.margin = margin(3, 3, 3, 3))
+ 
+
+fig3
+```
+
+```{r}
+test = fig3 + 
+  theme(legend.title=element_blank(), 
+        legend.box.background = element_rect(color="black"),
+        legend.box.margin = margin(3, 3, 3, 3),
+        legend.position = c(.95, .95),
+        legend.justification = c("right", "top"),
+        legend.box.just = "right",
+        legend.margin = margin(6, 6, 6, 6)
+) 
+test
+```
+
+```{r}
+legend = get_legend(fig3)
+
+ fig3_noleg = ggplot(imputed_biomass, aes(x = core_bottom_depth_cm, y = biomass, color = `Primary Lifestyle`)) + 
+    geom_smooth(method='loess', se = FALSE) + 
+   geom_point(size = 2) +
+   facet_wrap(~Tree_Health) + 
+    ylab("Imputed biomass (ng PLFA/g soil)") +
+    xlab("Core bottom depth (cm)") +
+    xlim(7, NA) +
+    ylim(-10, 1200) + theme_classic(base_size = 7) + theme(legend.position = "none") +
+   scale_color_manual(values = manual_colors)
+
+fig3_cow = ggdraw(fig3_noleg) + draw_grob(legend, hjust = -0.3, vjust = -0.2)
+fig3_cow
+``` 
+
+
+
+
+
+```{r}
+# create the jpg figure file in this results folder and in the reports folder
+
+# requirements: 1000 pp1 (pixels per inch), 140 mm wide
+# 1 inch = 0.0393701 mm, 1 mm = 25.4 inches
+
+ppi = 1000
+
+w_mm = 190
+hw_ratio = 5/11 # arbitrary
+
+h_mm = w_mm*hw_ratio
+w_i = w_mm/25.4
+h_i = h_mm/25.4
+
+jpeg("Results/Figure3.jpg", width = w_i * ppi, height = h_i * ppi, res = ppi)
+fig3_cow
+dev.off()
+
+jpeg("../../Reports/Figure3.jpg", width = w_i * ppi, height = h_i * ppi, res = ppi)
+fig3_cow
+dev.off()
+
+
+```
+
+```{r}
+# create the png figure file in this results folder and in the reports folder
+
+# requirements: 1000 pp1 (pixels per inch), 140 mm wide
+# 1 inch = 0.0393701 mm, 1 mm = 25.4 inches
+
+ppi = 1000
+
+w_mm = 190
+hw_ratio = 5/11 # arbitrary
+
+h_mm = w_mm*hw_ratio
+w_i = w_mm/25.4
+h_i = h_mm/25.4
+
+png("Results/Figure3.png", width = w_i * ppi, height = h_i * ppi, res = ppi)
+fig3_cow
+dev.off()
+
+png("../../Reports/Figure3.png", width = w_i * ppi, height = h_i * ppi, res = ppi)
+fig3_cow
+dev.off()
+```
+

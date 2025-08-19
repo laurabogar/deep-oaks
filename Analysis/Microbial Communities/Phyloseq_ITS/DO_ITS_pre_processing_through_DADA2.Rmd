@@ -1,0 +1,357 @@
+---
+title: "DO_ITS_pre_processing_Through_DADA2"
+author: "Glade Bogar"
+date: "2024-08-17"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+
+### BEGIN
+
+#set working directory: 
+
+#Use cutadapt within R to prepare ITS amplicon sequences for DADA2 processing.
+
+#Following tutorial here: https://benjjneb.github.io/dada2/ITS_workflow.html accessed April 13, 2020.
+
+#Some DADA2 functions are used in pre-processing. Download and load recommended R libraries.
+
+```{r}
+#install.packages("dada2")
+library(dada2)
+packageVersion("dada2")
+
+#install.packages("tidyverse")
+library(tidyverse)
+packageVersion("tidyverse")
+
+#if (!requireNamespace("BiocManager", quietly = TRUE))
+#    install.packages("BiocManager")
+#BiocManager::install("dada2", version = "3.19")
+
+#install.packages("ShortRead")
+library(ShortRead)
+packageVersion("ShortRead")
+
+#install.packages("Biostrings")
+library(Biostrings)
+packageVersion("Biostrings")
+```
+
+#If you don't have Conda, install miniconda and set up channels:
+    #In Terminal, run:
+        #wget https://repo.anaconda.com/miniconda/Miniconda3-latest-MacOSX-x86_64.sh
+        #sh Miniconda3-latest-MacOSX-x86_64.sh
+        #conda config --add channels defaults
+        #conda config --add channels bioconda
+        #conda config --add channels conda-forge
+        
+    #If you don't have wget, install homebrew and install wget.
+        #In Terminal, run:
+            #/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)"
+            #brew install wget
+
+#Install cutadapt using pip3:
+#from https://cutadapt.readthedocs.io/en/stable/installation.html#installation-with-conda:
+    #In Terminal, run:
+        #python3 -m pip install --user --upgrade cutadapt
+#View cutadapt use and citation:
+    #In Terminal, run:
+        #~/.local/bin/cutadapt --help
+        
+#Subset data for first test:
+  #In terminal:
+    #Navigate to folder where .fastq.gz files are
+    #Make a new directory: mkdir fastq_subset
+    #Run a loop on fastq.gz sequences: for i in *.fastq.gz; do gzcat $i | sed -n 1,20000p > fastq_subset/sub_$i; done;
+      #subsets 5,000 reads; for more or less, adjust -n to 1,(sequences*4)p
+      
+  #Note: outputs fastq.gz files, but they're not actually compressed? Rename to .fastq?
+        
+#Define path variable to locate files on local machine:
+```{r}
+path <- "~/Desktop/GAD_ELN/DO/Data/Amplicon_Sequences/Project_LBAG_TODO_LP_MP1/Target_ITS/"
+list.files(path)
+```
+
+#First pre-filter preparation:
+    #generate matched lists of the forward and reverse read files
+    #parse sample names from sequence file names
+```{r}
+fnFs <- sort(list.files(path, pattern = "R1.fastq.gz", full.names = TRUE))
+fnRs <- sort(list.files(path, pattern = "R2.fastq.gz", full.names = TRUE))
+```
+
+#Designate primer sequences:
+```{r}
+FWD <- "AGAACTTTYRRCAAYGGATCWCT"
+REV <- "AGAGCCTCCGCTTATTGATATGCTTAART"
+```
+
+#Check the presence and orientation of these primers in amplicon sequences:
+```{r}
+allOrients <- function(primer) {
+  # Create all orientations of the input sequence
+  require(Biostrings)
+  dna <- DNAString(primer)  # The Biostrings works w/ DNAString objects rather than character vectors
+  orients <- c(Forward = dna, Complement = complement(dna), Reverse = reverse(dna), 
+               RevComp = reverseComplement(dna))
+  return(sapply(orients, toString))  # Convert back to character vector
+}
+FWD.orients <- allOrients(FWD)
+REV.orients <- allOrients(REV)
+FWD.orients
+```
+
+#First pre-filter: Remove sequences with ambiguous bases (N):
+```{r}
+fnFs.filtN <- file.path(path, "filtN", basename(fnFs)) # Put N-filterd files in filtN/ subdirectory
+fnRs.filtN <- file.path(path, "filtN", basename(fnRs))
+filterAndTrim(fnFs, fnFs.filtN, fnRs, fnRs.filtN, maxN = 0, multithread = TRUE, compress = TRUE)
+```
+
+#Count the number of times primers appear in forward and reverse reads of sequences,
+#while considering all possible primer orientations.
+#Identifying and counting primers on one set of paired end FASTQ files is sufficient,
+#assuming all the files were created using the same library preparation.
+#Thus, only process the first sample.
+```{r}
+primerHits <- function(primer, fn) {
+  # Counts number of reads in which the primer is found
+  nhits <- vcountPattern(primer, sread(readFastq(fn)), fixed = FALSE)
+  return(sum(nhits > 0))
+}
+rbind(FWD.ForwardReads = sapply(FWD.orients, primerHits, fn = fnFs.filtN[[1]]), 
+      FWD.ReverseReads = sapply(FWD.orients, primerHits, fn = fnRs.filtN[[1]]), 
+      REV.ForwardReads = sapply(REV.orients, primerHits, fn = fnFs.filtN[[1]]), 
+      REV.ReverseReads = sapply(REV.orients, primerHits, fn = fnRs.filtN[[1]]))
+```
+
+#Some reverse reads? amplicons are large, up to 600bp.
+
+#Define and test path to cutadapt
+```{r}
+cutadapt <- "/Users/gadlott/.local/bin/cutadapt"
+system2(cutadapt, args = "--version")
+```
+
+#Create output filenames for the cutadapt-ed files,
+#and define the parameters we are going to give the cutadapt command.
+#The critical parameters are the primers,
+#and they need to be in the right orientation,
+#i.e. the FWD primer should have been matching the forward-reads in its forward orientation,
+#and the REV primer should have been matching the reverse-reads in its forward orientation.
+```{r}
+path.cut <- file.path(path, "cutadapt")
+if(!dir.exists(path.cut)) dir.create(path.cut)
+fnFs.cut <- file.path(path.cut, basename(fnFs))
+fnRs.cut <- file.path(path.cut, basename(fnRs))
+
+FWD.RC <- dada2:::rc(FWD)
+REV.RC <- dada2:::rc(REV)
+# Trim FWD and the reverse-complement of REV off of R1 (forward reads)
+R1.flags <- paste("-g", FWD, "-a", REV.RC) 
+# Trim REV and the reverse-complement of FWD off of R2 (reverse reads)
+R2.flags <- paste("-G", REV, "-A", FWD.RC) 
+# Run Cutadapt
+for(i in seq_along(fnFs)) {
+  system2(cutadapt, args = c(R1.flags, R2.flags, "-n", 2, "-m", 100,
+                             "-o", fnFs.cut[i], "-p", fnRs.cut[i], # output files
+                             fnFs.filtN[i], fnRs.filtN[i])) # input files
+}
+```
+
+#As a sanity check, count the presence of primers in the first cutadapt-ed sample:
+```{r}
+rbind(FWD.ForwardReads = sapply(FWD.orients, primerHits, fn = fnFs.cut[[1]]), 
+      FWD.ReverseReads = sapply(FWD.orients, primerHits, fn = fnRs.cut[[1]]), 
+      REV.ForwardReads = sapply(REV.orients, primerHits, fn = fnFs.cut[[1]]), 
+      REV.ReverseReads = sapply(REV.orients, primerHits, fn = fnRs.cut[[1]]))
+```
+
+#The primer-free sequence files are now ready to be analyzed through the DADA2 pipeline.
+
+#proceedingto DADA2.
+
+#read in the names of the cutadapt-ed FASTQ files and apply string manipulation
+#to get matched lists of forward and reverse fastq files:
+```{r}
+# Forward and reverse fastq filenames have the format:
+cutFs <- sort(list.files(path.cut, pattern = "_R1.fastq.gz", full.names = TRUE))
+cutRs <- sort(list.files(path.cut, pattern = "_R2.fastq.gz", full.names = TRUE))
+```
+
+#remove samples that will contain 0 reads after filtering,
+#causing later bugs:
+```{r}
+#cutFs <- cutFs[-104]
+#cutFs <- cutFs[-187]
+#cutRs <- cutRs[-104]
+#cutRs <- cutRs[-187]
+```
+
+# Extract sample names:
+```{r}
+sample.names <- basename(cutFs)
+head(sample.names)
+```
+
+#Inspect read quality profiles
+
+#Visualize the quality profiles of the forward reads:
+```{r}
+plotQualityProfile(cutFs[2])
+```
+
+#strange pattern - two distinct bands?
+
+#Visualize the quality profiles of the reverse reads:
+```{r}
+plotQualityProfile(cutRs[2])
+```
+
+#Assign the filenames for the output of the filtered reads to be stored as fastq.gz files:
+```{r}
+filtFs <- file.path(path.cut, "filtered", basename(cutFs))
+filtRs <- file.path(path.cut, "filtered", basename(cutRs))
+```
+
+#Filter and trim the files, using the following settings:
+    #maxN=0 (DADA2 requires sequences contain no Ns),
+    #truncQ = 2,
+    #rm.phix = TRUE,
+    #maxEE=2.
+    #truncation on forward reads at bp=240, reverse reads at bp=160  ()
+#Note: We enforce a minLen here, to get rid of spurious very low-length sequences.
+```{r}
+out <- filterAndTrim(cutFs, filtFs, cutRs, filtRs, maxN = 0, truncQ = 2, minLen = 100, rm.phix = TRUE, compress = TRUE, multithread = TRUE)
+head(out)
+
+```
+
+#Learn the forward-read error rates:
+```{r}
+errF <- learnErrors(filtFs, multithread = TRUE)
+```
+
+#Learn the reverse-read error rates:
+```{r}
+errR <- learnErrors(filtRs, multithread = TRUE)
+```
+
+#Visualize the estimated error rates as a sanity check.
+```{r}
+plotErrors(errF, nominalQ = TRUE)
+```
+#seems pretty bad to me - still have no concept of how to evaluate this. Will need to see how it looks on full data.
+
+#Dereplicate identical reads:
+```{r}
+derepFs <- derepFastq(filtFs, verbose = TRUE)
+derepRs <- derepFastq(filtRs, verbose = TRUE)
+# Name the derep-class objects by the sample names
+names(derepFs) <- sample.names
+names(derepRs) <- sample.names
+```
+
+#Sample Inference
+
+#At this step, the core sample inference algorithm is applied to the dereplicated data:
+```{r}
+dadaFs <- dada(derepFs, err = errF, multithread = TRUE)
+dadaRs <- dada(derepRs, err = errR, multithread = TRUE)
+```
+
+#merge paired reads
+```{r}
+mergers <- mergePairs(dadaFs, derepFs, dadaRs, derepRs, verbose=TRUE)
+```
+
+#Construct sequence table
+    #We can now construct an amplicon sequence variant table (ASV) table,
+    #a higher-resolution version of the OTU table produced by traditional methods.
+```{r}
+seqtab <- makeSequenceTable(mergers)
+dim(seqtab)
+```
+
+#Remove chimeras
+```{r}
+seqtab.nochim <- removeBimeraDenovo(seqtab, method="consensus", multithread=TRUE, verbose=TRUE)
+```
+
+#save ASV table:
+```{r}
+write_rds(seqtab.nochim, "Results/ASV_Table_ITS.rds")
+```
+
+
+#Inspect distribution of sequence lengths:
+```{r}
+table(nchar(getSequences(seqtab.nochim)))
+```
+
+#shockingly variable, and some seem pretty small?
+
+#Track reads through the entire pipeline:
+```{r}
+getN <- function(x) sum(getUniques(x))
+track <- cbind(out, sapply(dadaFs, getN), sapply(dadaRs, getN), sapply(mergers, 
+                                                                       getN), rowSums(seqtab.nochim))
+# If processing a single sample, remove the sapply calls: e.g. replace
+# sapply(dadaFs, getN) with getN(dadaFs)
+colnames(track) <- c("input", "filtered", "denoisedF", "denoisedR", "merged", 
+                     "nonchim")
+rownames(track) <- sample.names
+track
+
+track2 <- as.data.frame(track)
+track2$Sequencing_ID <- row.names(track)
+
+write_csv(track2, "Results/DADA2_pipeline_track_ITS.csv")
+```
+
+#move on to taxonomy assignment.
+
+#read asv table if starting here:
+```{r}
+seqtab.nochim <- read_rds("Results/ASV_Table_ITS.rds")
+```
+
+#assign taxonomy: NOTE: Download the most recent version of the UNITE dataset; https://unite.ut.ee/repository.php
+```{r}
+unite.ref <- "../../../CNH2/SH1/Analysis/Microbial_Community_ITS/sh_general_release_dynamic_25.07.2023.fasta"  # CHANGE ME to location on your machine
+
+system.time(
+  taxa <- assignTaxonomy(seqtab.nochim, unite.ref, multithread = TRUE, tryRC = TRUE)
+)
+```
+
+#write taxonomy table:
+```{r}
+write_rds(taxa, "Results/Taxa_Table_ITS.rds")
+```

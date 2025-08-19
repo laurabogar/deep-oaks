@@ -1,0 +1,216 @@
+---
+title: "Deep Oaks PERMANOVAs and NMDSs"
+author: "Anna Goodman"
+date: "2025-04-25"
+output: html_document
+---
+# TO DO IN EDITING THIS:
+## 
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+### load required packages:
+```{r}
+library("phyloseq")
+library("vegan")
+library("tidyverse")
+library("phyloseq")
+```
+
+##Analyze 12 PERMANOVAs:
+#   16S ASVs, NMDS ~ depth * tree health * nucleic acid
+#   same, RNA-only, NMDS ~ depth * tree health
+#   same, DNA-only, NMDS ~ depth * tree health
+#   ITS ASVs, NMDS ~ depth * tree health * nucleic acid
+#   same, RNA-only, NMDS ~ depth * tree health
+#   same, DNA-only, NMDS ~ depth * tree health
+#   ITS Niche, NMDS ~ depth * tree health * nucleic acid
+#   same, RNA-only, NMDS ~ depth * tree health
+#   same, DNA-only, NMDS ~ depth * tree health
+#   16S Functions, NMDS ~ depth * tree health * nucleic acid
+#   same, RNA-only, NMDS ~ depth * tree health
+#   same, DNA-only, NMDS ~ depth * tree health
+
+
+
+#load pre-filtered, relativized phyloseq objects:
+```{r}
+# 16S ASVs
+## with data from both nucleic acids
+ps16S_relative <- read_rds("../../../TidyData/Phyloseq/Tidy_relativize_phyloseq_objects/Results/ps16S_relative_mip.rds")
+## DNA only
+ps16S_relative_DNA <- read_rds("../../../TidyData/Phyloseq/Tidy_relativize_phyloseq_objects/Results/ps16S_relative_DNA_mip.rds")
+## RNA only
+ps16S_relative_RNA <- read_rds("../../../TidyData/Phyloseq/Tidy_relativize_phyloseq_objects/Results/ps16S_relative_RNA_mip.rds")
+
+
+# ITS ASVs
+## with data from both nucleic acids
+psITS_relative <- read_rds("../../../TidyData/Phyloseq/Tidy_relativize_phyloseq_objects/Results/psITS_relative_mip.rds")
+## DNA only
+psITS_relative_DNA <- read_rds("../../../TidyData/Phyloseq/Tidy_relativize_phyloseq_objects/Results/psITS_relative_DNA_mip.rds")
+## RNA only
+psITS_relative_RNA <- read_rds("../../../TidyData/Phyloseq/Tidy_relativize_phyloseq_objects/Results/psITS_relative_RNA_mip.rds")
+
+# 16S traits
+## with data from both nucleic acids
+ps16S_traits_relative <- read_rds("../../../TidyData/Phyloseq/Tidy_relativize_phyloseq_objects/Results/ps16S_traits_relative_mip.rds")
+## DNA only
+ps16S_traits_relative_DNA <- read_rds("../../../TidyData/Phyloseq/Tidy_relativize_phyloseq_objects/Results/ps16S_traits_relative_DNA_mip.rds")
+## RNA only
+ps16S_traits_relative_RNA <- read_rds("../../../TidyData/Phyloseq/Tidy_relativize_phyloseq_objects/Results/ps16S_traits_relative_RNA_mip.rds")
+
+
+# ITS traits
+## with data from both nucleic acids
+psITS_traits_relative <- read_rds("../../../TidyData/Phyloseq/Tidy_relativize_phyloseq_objects/Results/psITS_traits_relative_mip.rds")
+## DNA only
+psITS_traits_relative_DNA <- read_rds("../../../TidyData/Phyloseq/Tidy_relativize_phyloseq_objects/Results/psITS_traits_relative_DNA_mip.rds")
+## RNA only
+psITS_traits_relative_RNA <- read_rds("../../../TidyData/Phyloseq/Tidy_relativize_phyloseq_objects/Results/psITS_traits_relative_RNA_mip.rds")
+```
+
+
+# Write function to preform PERMANOVAs with common settings
+```{r}
+PERMANOVA_from_ps_relative = function (ps_relative, nucleic_acid_type) {
+  set.seed(8934)
+  if (nucleic_acid_type == "single") { 
+        ps_relative_df <- as(sample_data(ps_relative),"data.frame")
+        ps_relative_dist_matrix <- phyloseq::distance(ps_relative, "bray")
+        ps_relative_PERMANOVA <- adonis2(ps_relative_dist_matrix ~
+                                          core_bottom_depth_cm * Tree_Health,
+                                    strata = ps_relative_df$Tree,
+                                         ps_relative_df,
+                                     by = "terms")
+     } else if (nucleic_acid_type == "both"){ # INCLUDES NUCLEIC ACID AS A FACTOR
+         ps_relative_df <- as(sample_data(ps_relative),"data.frame")
+         ps_relative_dist_matrix <- phyloseq::distance(ps_relative, "bray")
+         ps_relative_PERMANOVA <- adonis2(ps_relative_dist_matrix ~
+                                          core_bottom_depth_cm * Tree_Health * nucleic_acid,
+                                    strata = ps_relative_df$Tree,
+                                        ps_relative_df,
+                                     by = "terms") 
+     }
+  
+return(ps_relative_PERMANOVA)
+  # this PERMANOVA:
+      # evaluates the effects of depth, tree health, and nucleic acid (when applicable), in that order
+      # blocks by tree identiy
+}
+```
+
+#16S ASVs
+```{r}
+ps16S_relative_PERMANOVA = PERMANOVA_from_ps_relative(ps16S_relative, "both")
+ps16S_relative_DNA_PERMANOVA = PERMANOVA_from_ps_relative(ps16S_relative_DNA, "single")
+ps16S_relative_RNA_PERMANOVA = PERMANOVA_from_ps_relative(ps16S_relative_RNA, "single")
+
+write_rds(ps16S_relative_PERMANOVA, "Results/ps16S_relative_PERMANOVA_mip.rds")
+write_rds(ps16S_relative_DNA_PERMANOVA, "Results/ps16S_relative_DNA_PERMANOVA_mip.rds")
+write_rds(ps16S_relative_RNA_PERMANOVA, "Results/ps16S_relative_RNA_PERMANOVA_mip.rds")
+```
+
+#ITS ASVs
+```{r}
+psITS_relative_PERMANOVA = PERMANOVA_from_ps_relative(psITS_relative, "both")
+psITS_relative_DNA_PERMANOVA = PERMANOVA_from_ps_relative(psITS_relative_DNA, "single")
+psITS_relative_RNA_PERMANOVA = PERMANOVA_from_ps_relative(psITS_relative_RNA, "single")
+
+write_rds(psITS_relative_PERMANOVA, "Results/psITS_relative_PERMANOVA_mip.rds")
+write_rds(psITS_relative_DNA_PERMANOVA, "Results/psITS_relative_DNA_PERMANOVA_mip.rds")
+write_rds(psITS_relative_RNA_PERMANOVA, "Results/psITS_relative_RNA_PERMANOVA_mip.rds")
+```
+
+#16S traits
+```{r}
+ps16S_traits_relative_PERMANOVA = PERMANOVA_from_ps_relative(ps16S_traits_relative, "both")
+ps16S_traits_relative_DNA_PERMANOVA = PERMANOVA_from_ps_relative(ps16S_traits_relative_DNA, "single")
+ps16S_traits_relative_RNA_PERMANOVA = PERMANOVA_from_ps_relative(ps16S_traits_relative_RNA, "single")
+
+write_rds(ps16S_traits_relative_PERMANOVA, "Results/ps16S_traits_relative_PERMANOVA_mip.rds")
+write_rds(ps16S_traits_relative_DNA_PERMANOVA, "Results/ps16S_traits_relative_DNA_PERMANOVA_mip.rds")
+write_rds(ps16S_traits_relative_RNA_PERMANOVA, "Results/ps16S_traits_relative_RNA_PERMANOVA_mip.rds")
+```
+
+#ITS traits
+```{r}
+psITS_traits_relative_PERMANOVA = PERMANOVA_from_ps_relative(psITS_traits_relative, "both")
+psITS_traits_relative_DNA_PERMANOVA = PERMANOVA_from_ps_relative(psITS_traits_relative_DNA, "single")
+psITS_traits_relative_RNA_PERMANOVA = PERMANOVA_from_ps_relative(psITS_traits_relative_RNA, "single")
+
+write_rds(psITS_traits_relative_PERMANOVA, "Results/psITS_traits_relative_PERMANOVA_mip.rds")
+write_rds(psITS_traits_relative_DNA_PERMANOVA, "Results/psITS_traits_relative_DNA_PERMANOVA_mip.rds")
+write_rds(psITS_traits_relative_RNA_PERMANOVA, "Results/psITS_traits_relative_RNA_PERMANOVA_mip.rds")
+```
+
+# Make summary table for publication
+## compile summary data from selected permanova models
+```{r}
+
+# The models we will report:
+
+results = list("16S ASVs" = data.frame(ps16S_relative_PERMANOVA),
+               "ITS ASVs" = data.frame(psITS_relative_PERMANOVA),
+               "16S Traits" = data.frame(ps16S_traits_relative_PERMANOVA),
+               "ITS Traits" = data.frame(psITS_traits_relative_PERMANOVA),
+               "ITS Traits - DNA only" = data.frame(psITS_traits_relative_DNA_PERMANOVA),
+               "ITS Traits - RNA only" = data.frame(psITS_traits_relative_RNA_PERMANOVA))
+
+# We are reporting PERMANOVA models with data from both nucleic acids. In the Case of ITS Traits, we are also reporting single nucleic acid models only because there was a significant Tree Mortality x Nucleic Acid interaction
+
+```
+
+## Tidy text 
+```{r}
+
+results <- lapply(results, function(df) { # modify each summary dataframe in the following ways:
+  
+  # the factors are currently row names; make them their own column so we can manipulate their formatting
+  df <- cbind(Factor = rownames(df), df) # copy rownames into a column, put it on the left side of the dataframe
+  rownames(df) <- NULL # remove the rownames now that factors are represented in a column
+  
+  # make edits to all the strings in each dataframe so they're more readable in the final table
+  df[] <- lapply(df, function(col) { # apply the following changes to each column of each dataframe
+    if (is.character(col)) { # but only if the column has character data in it
+      col <- gsub("core_bottom_depth_cm", "Depth", col)
+      col <- gsub("Tree_Health", "Tree Mortality", col)
+      col <- gsub("nucleic_acid", "Nucleic Acid", col)
+      col <- gsub(":", " x ", col)
+    }
+    col
+  })
+  df
+})
+
+
+results <- Map(function(df, name) { # Add the name of the model as a column, and put it on the far left side of the dataframe
+  df$Model <- name
+  df = select(df, c(Model, Factor, R2, F, Pr..F.))
+}, results, names(results))
+
+results
+```
+
+## bind tidy results into a single dataframe
+```{r}
+table <- do.call(rbind, results)
+
+# Fix the column names
+table <- table %>%
+  rename_with(~ ifelse(.x == "Pr..F.", "Pr(>F)", .x))
+
+rownames(table) <- NULL # remove the rownames now that factors are represented in a column
+
+colnames(table)
+
+table
+```
+
+## export
+``` {r}
+write_csv(table, "Results/Permanova_table_mip.csv")
+write_csv(table, "../../../Reports/Permanova_table_mip.csv")
+```
+

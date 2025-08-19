@@ -1,0 +1,195 @@
+---
+title: "DOMC_misccalcs_AG_22Nov"
+author: "Anna Goodman"
+date: "2024-11-23"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# libraries
+```{r}
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(nlme)
+library(lme4)
+library(lmerTest)
+```
+
+# data
+```{r}
+# load in the metadata with all 36 samples in it. no nucleic acid data
+metadata36 <- read.csv("../../../TidyData/Metadata/Results/per_sample_metadata_mip.csv")
+
+#add soil_depth_cm variable (would calculate but it’s defined to be 7.5 cm):
+metadata36$soil_depth_cm <- 7.5
+
+#calculate g carbon per cm^3 of soil:
+metadata36 <- mutate(metadata36, mass_C_g_per_cm3_soil = bulk_density_g_cm3 * carbon_percent)
+
+#calculate kg carbon per m^3 of soil:
+metadata36 <- mutate(metadata36, mass_C_kg_per_m2_soil = (mass_C_g_per_cm3_soil * soil_depth_cm * 100 * 100)/1000)
+
+#calculate metric tons (Mg) carbon in each depth fraction per hectare:
+metadata36 <- mutate(metadata36, mass_C_Mg_per_ha = (mass_C_kg_per_m2_soil * 10000 / 1000))
+```
+
+```{r}
+metadata27 <- read.csv("../Fungal-Bacterial Interactions/DeSeq2 Indicator Species Analysis/Results/metadata_with_ECMasssociated3trees_mip.csv")
+
+#metadata27 is the metadata doc that Glade sent me on Nov 19, notably containing ectomycorrhizal biomass, ecm-assoicated bacterial biomass, and total ecm associated biomass
+
+# it only has 27 datapoints bc it depends on 16S RNA relative abudnacnes
+
+# it doesn't have raw rna-based relative abundance of ectomycorrhizae though
+metadata27 <- mutate(metadata27, ectomycorrhizal_relabund = ectomycorrhizal/PLFA_Total_Fungi_ng_g)
+
+metadata27 = dplyr::rename(metadata27, ectomycorrhizal_biomass = ectomycorrhizal)
+```
+
+```{r}
+Primary_lifestyle_by_sample <- read.csv("Results/ITS_Functions_By_Sample/Primary_lifestyle_by_sample_mip.csv")
+
+phyloseq_metadata_ITS <- read.csv("../../../TidyData/Metadata/Results/phyloseq_metadata_ITS_mip.csv")
+
+```
+
+```{r}
+# prep dataframes to join
+sampleIDs = select(phyloseq_metadata_ITS, c(phyloseq_name, DO_ID, core_top_depth_cm, core_bottom_depth_cm, Tree_Health, nucleic_acid))
+Primary_lifestyle_by_sample = dplyr::rename(Primary_lifestyle_by_sample, phyloseq_name = Primary_lifestyle)
+```
+
+```{r}
+# add DO_ID and depth to Primary lifestyle by sample
+lifestyle_with_IDs = full_join(sampleIDs, Primary_lifestyle_by_sample, by = "phyloseq_name")
+
+```
+
+```{r}
+# tidy this new dataframe 
+
+#REMOVE DNA
+lifestyle_with_IDs = filter(lifestyle_with_IDs, nucleic_acid == "RNA")
+
+# remove controls
+lifestyle_with_IDs = filter(lifestyle_with_IDs, (is.na(core_bottom_depth_cm) == FALSE))
+```
+
+# calculate means of ectomycorrhizal relative abundance 
+```{r}
+# from metadata27
+dead.frame = filter(metadata27, Tree_Health == "dead")
+
+d.treegroups = group_by(dead.frame, dead.frame$Tree)
+
+topdead = filter(d.treegroups, core_top_depth_cm == 0)
+deepDead = filter(d.treegroups, core_top_depth_cm > 20)
+```
+
+```{r}
+mean(topdead$ectomycorrhizal_relabund)
+```
+
+```{r}
+deep.ecm = deepDead %>% summarise(ectomycorrhizal_relabund = mean(ectomycorrhizal_relabund))
+deep.ecm
+# this isn't working bc metadata27 is missing values (see below)
+```
+
+
+```{r}
+# repeat from lifestyle_with_IDs
+dead.frame = filter(lifestyle_with_IDs, Tree_Health == "dead")
+
+d.treegroups = group_by(dead.frame, dead.frame$Tree)
+
+topdead = filter(d.treegroups, core_top_depth_cm == 0)
+deepDead = filter(d.treegroups, core_top_depth_cm > 20)
+
+top.ecm = mean(topdead$ectomycorrhizal)
+
+deep.ecm = deepDead %>% summarise(ectomycorrhizal_relabund = mean(ectomycorrhizal))
+# deep.ecm = deep.ecm[[ectomycorrhizal_relabund]]
+
+
+```
+
+```{r}
+mean(topdead$ectomycorrhizal)
+```
+
+```{r}
+mean(deepDead$ectomycorrhizal)
+```
+
+```{r}
+whichnas = select(metadata27, c(ectomycorrhizal_relabund, DO_ID))
+whichgood = select(lifestyle_with_IDs, c(ectomycorrhizal, DO_ID))
+
+compare = full_join(whichgood, whichnas, join_by("DO_ID"))
+
+# ok it looks like the metadata27 file is missing a datapoint: DO_T05_15-22.5
+```
+
+
+# calculate means of ectomycorrhizal relative abundance 
+```{r}
+# from metadata27
+living.frame = filter(metadata27, Tree_Health == "living")
+
+d.treegroups = group_by(living.frame, living.frame$Tree)
+
+topliving = filter(d.treegroups, core_top_depth_cm == 0)
+deepliving = filter(d.treegroups, core_top_depth_cm > 20)
+```
+
+```{r}
+mean(topliving$ectomycorrhizal_relabund)
+```
+
+```{r}
+deep.ecm = deepliving %>% summarise(ectomycorrhizal_relabund = mean(ectomycorrhizal_relabund))
+deep.ecm
+# this isn't working bc metadata27 is missing values (see below)
+```
+
+
+```{r}
+# repeat from lifestyle_with_IDs
+living.frame = filter(lifestyle_with_IDs, Tree_Health == "living")
+
+l.treegroups = group_by(living.frame, living.frame$Tree)
+
+topliving = filter(l.treegroups, core_top_depth_cm == 0)
+deepliving = filter(l.treegroups, core_top_depth_cm > 20)
+
+top.ecm = mean(topliving$ectomycorrhizal)
+
+deep.ecm = deepliving %>% summarise(ectomycorrhizal_relabund = mean(ectomycorrhizal))
+# deep.ecm = deep.ecm[[ectomycorrhizal_relabund]]
+
+
+```
+
+```{r}
+mean(topliving$ectomycorrhizal)
+```
+
+```{r}
+mean(deepliving$ectomycorrhizal)
+```
+
+```{r}
+whichnas = select(metadata27, c(ectomycorrhizal_relabund, DO_ID))
+whichgood = select(lifestyle_with_IDs, c(ectomycorrhizal, DO_ID))
+
+compare = full_join(whichgood, whichnas, join_by("DO_ID"))
+
+# ok it looks like the metadata27 file is missing a datapoint: DO_T05_15-22.5
+```
+
+

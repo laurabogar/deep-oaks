@@ -1,0 +1,84 @@
+---
+title: "make_combined_traits_per_sample_mip"
+output: html_document
+---
+
+```{r}
+library(tidyverse)
+library(phyloseq)
+```
+
+
+```{r}
+ps16S_relative_traits = read_rds("../../../TidyData/Phyloseq/Tidy_relativize_phyloseq_objects/Results/ps16S_traits_relative_mip.rds")
+```
+
+#Agglomerate to combined_traits:
+```{r}
+ps16S_relative_traits <- tax_glom(ps16S_relative_traits, taxrank = "combined_traits", NArm = FALSE)
+ps16S_relative_traits
+```
+
+#re-name samples:
+```{r}
+sample_data(ps16S_relative_traits)$DO_Name <- str_c(sample_data(ps16S_relative_traits)$DO_ID, sample_data(ps16S_relative_traits)$nucleic_acid, sep = "_")
+sample_names(ps16S_relative_traits) <- sample_data(ps16S_relative_traits)$DO_Name
+```
+
+
+#we need the asv table?
+```{r}
+ps16S_relative_traits_asv_table <- data.frame(otu_table(ps16S_relative_traits))
+```
+
+#yes, but the trait names have not been preserved.
+
+#taxa table:
+```{r}
+ps16S_relative_traits_tax_table <- data.frame(tax_table(ps16S_relative_traits))
+```
+
+#that will work.
+
+#invert the ASV table:
+```{r}
+ps16S_relative_traits_asv_table_t <- data.frame(t(ps16S_relative_traits_asv_table))
+```
+
+#rowname to columns:
+```{r}
+ps16S_relative_traits_tax_table <- rownames_to_column(ps16S_relative_traits_tax_table, var = "ASVs")
+ps16S_relative_traits_asv_table_t <- rownames_to_column(ps16S_relative_traits_asv_table_t, var = "ASVs")
+```
+
+#leftjoin:
+```{r}
+ps16S_faprotax_traits_per_sample <- left_join(ps16S_relative_traits_tax_table, ps16S_relative_traits_asv_table_t)
+```
+
+#arrange for use:
+```{r}
+ps16S_faprotax_traits_per_sample <- select(ps16S_faprotax_traits_per_sample, -ASVs, -Genus, -Species)
+ps16S_faprotax_traits_per_sample_t <- data.frame(t(ps16S_faprotax_traits_per_sample))
+ps16S_faprotax_traits_per_sample_t <- rownames_to_column(ps16S_faprotax_traits_per_sample_t, var = "DO_Name")
+```
+
+#export:
+```{r}
+
+col_strings = ps16S_faprotax_traits_per_sample_t[1,]
+colnames(ps16S_faprotax_traits_per_sample_t) = col_strings
+
+row_strings = ps16S_faprotax_traits_per_sample_t[,1]
+
+ps16S_faprotax_traits_per_sample_t = dplyr::rename(ps16S_faprotax_traits_per_sample_t, DO_ID = combined_traits)
+
+bac_traits = ps16S_faprotax_traits_per_sample_t[2:(length(row_strings)),]
+
+bac_traits[-1] <- lapply(bac_traits[-1], function(x) {
+  as.numeric(as.character(x))
+})
+
+write_csv(bac_traits, "Results/per_sample_faprotax_all_mip.csv")
+
+```

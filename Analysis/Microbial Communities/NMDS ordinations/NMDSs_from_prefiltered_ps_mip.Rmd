@@ -1,0 +1,131 @@
+---
+title: "Calculate NMDSs"
+author: "Anna Goodman"
+date: "2025-06-09"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Preform ordination
+
+#   16S ASVs, DNA - only, with fitted Factor Analysis sample metadata vectors; color by trees (custom; living warm tone, dead cold tone), opacity by depth (outline original color)
+#   ITS ASVs, DNA - only, with fitted Factor Analysis sample metadata vectors
+#   ITS Niche, DNA - only, with fitted Factor Analysis sample metadata vectors
+#   16S Functions, DNA - only, with fitted Factor Analysis sample metadata vectors
+
+#   16S ASVs, DNA - RNA distances (same aesthetics) - vector % RNA-based ECM
+#   ITS ASVs, DNA - RNA distances (same aesthetics) - vector % RNA-based ECM
+#   ITS Niche, DNA - RNA distances (same aesthetics) - vector % RNA-based ECM
+#   16S Functions, DNA - RNA distances (same aesthetics) - vector % RNA-based ECM
+
+### load required packages:
+```{r}
+library("phyloseq")
+library("vegan")
+library("tidyverse")
+library("phyloseq")
+```
+
+#load pre-filtered, relativized phyloseq objects:
+```{r}
+# 16S ASVs
+## with data from both nucleic acids
+ps16S_relative <- read_rds("../../../TidyData/Phyloseq/Tidy_relativize_phyloseq_objects/Results/ps16S_relative_mip.rds")
+## DNA only
+ps16S_relative_DNA <- read_rds("../../../TidyData/Phyloseq/Tidy_relativize_phyloseq_objects/Results/ps16S_relative_DNA_mip.rds")
+## RNA only
+ps16S_relative_RNA <- read_rds("../../../TidyData/Phyloseq/Tidy_relativize_phyloseq_objects/Results/ps16S_relative_RNA_mip.rds")
+
+
+# ITS ASVs
+## with data from both nucleic acids
+psITS_relative <- read_rds("../../../TidyData/Phyloseq/Tidy_relativize_phyloseq_objects/Results/psITS_relative_mip.rds")
+## DNA only
+psITS_relative_DNA <- read_rds("../../../TidyData/Phyloseq/Tidy_relativize_phyloseq_objects/Results/psITS_relative_DNA_mip.rds")
+## RNA only
+psITS_relative_RNA <- read_rds("../../../TidyData/Phyloseq/Tidy_relativize_phyloseq_objects/Results/psITS_relative_RNA_mip.rds")
+
+# 16S traits
+## with data from both nucleic acids
+ps16S_traits_relative <- read_rds("../../../TidyData/Phyloseq/Tidy_relativize_phyloseq_objects/Results/ps16S_traits_relative_mip.rds")
+## DNA only
+ps16S_traits_relative_DNA <- read_rds("../../../TidyData/Phyloseq/Tidy_relativize_phyloseq_objects/Results/ps16S_traits_relative_DNA_mip.rds")
+## RNA only
+ps16S_traits_relative_RNA <- read_rds("../../../TidyData/Phyloseq/Tidy_relativize_phyloseq_objects/Results/ps16S_traits_relative_RNA_mip.rds")
+
+
+# ITS traits
+## with data from both nucleic acids
+psITS_traits_relative <- read_rds("../../../TidyData/Phyloseq/Tidy_relativize_phyloseq_objects/Results/psITS_traits_relative_mip.rds")
+## DNA only
+psITS_traits_relative_DNA <- read_rds("../../../TidyData/Phyloseq/Tidy_relativize_phyloseq_objects/Results/psITS_traits_relative_DNA_mip.rds")
+## RNA only
+psITS_traits_relative_RNA <- read_rds("../../../TidyData/Phyloseq/Tidy_relativize_phyloseq_objects/Results/psITS_traits_relative_RNA_mip.rds")
+```
+
+# Write function to preform NMDS ordination with common settings
+```{r}
+
+NMDS_from_ps_relative = function (ps_relative) {
+  set.seed(4721)
+  NMDS <- ordinate(ps_relative,
+                          method = "NMDS", #Ordinate with NMDS
+                          distance = "bray", #Use Bray-Curtis distances
+                          trymax = 100, #Iterate 100 times
+                          k = 2) #ordinate in 2 axes
+return(NMDS)
+}
+```
+
+# Make 16S ASV NMDSs
+```{r}
+NMDS_ps16S_relative = NMDS_from_ps_relative(ps16S_relative)
+NMDS_ps16S_relative_DNA = NMDS_from_ps_relative(ps16S_relative_DNA)
+NMDS_ps16S_relative_RNA = NMDS_from_ps_relative(ps16S_relative_RNA)
+
+# Save NMDSs as rds files
+write_rds(NMDS_ps16S_relative, "Results/NMDS_ps16S_relative_mip.rds")
+write_rds(NMDS_ps16S_relative_DNA, "Results/NMDS_ps16S_relative_DNA_mip.rds")
+write_rds(NMDS_ps16S_relative_RNA, "Results/NMDS_ps16S_relative_RNA_mip.rds")
+```
+
+# Make ITS ASV NMDSs
+```{r}
+NMDS_psITS_relative = NMDS_from_ps_relative(psITS_relative)
+NMDS_psITS_relative_DNA = NMDS_from_ps_relative(psITS_relative_DNA)
+NMDS_psITS_relative_RNA = NMDS_from_ps_relative(psITS_relative_RNA)
+
+# Save NMDSs as rds files
+write_rds(NMDS_psITS_relative, "Results/NMDS_psITS_relative_mip.rds")
+write_rds(NMDS_psITS_relative_DNA, "Results/NMDS_psITS_relative_DNA_mip.rds")
+write_rds(NMDS_psITS_relative_RNA, "Results/NMDS_psITS_relative_RNA_mip.rds")
+```
+
+# Make 16S traits NMDSs
+```{r}
+NMDS_ps16S_traits_relative = NMDS_from_ps_relative(ps16S_traits_relative)
+NMDS_ps16S_traits_relative_DNA = NMDS_from_ps_relative(ps16S_traits_relative_DNA)
+NMDS_ps16S_traits_relative_RNA = NMDS_from_ps_relative(ps16S_traits_relative_RNA)
+
+# Save NMDSs as rds files
+write_rds(NMDS_ps16S_traits_relative, "Results/NMDS_ps16S_traits_relative_mip.rds")
+write_rds(NMDS_ps16S_traits_relative_DNA, "Results/NMDS_ps16S_traits_relative_DNA_mip.rds")
+write_rds(NMDS_ps16S_traits_relative_RNA, "Results/NMDS_ps16S_traits_relative_RNA_mip.rds")
+```
+
+# Make ITS trait NMDSs
+```{r}
+NMDS_psITS_traits_relative = NMDS_from_ps_relative(psITS_traits_relative)
+NMDS_psITS_traits_relative_DNA = NMDS_from_ps_relative(psITS_traits_relative_DNA)
+NMDS_psITS_traits_relative_RNA = NMDS_from_ps_relative(psITS_traits_relative_RNA)
+
+# Save NMDSs as rds files
+write_rds(NMDS_psITS_traits_relative, "Results/NMDS_psITS_traits_relative_mip.rds")
+write_rds(NMDS_psITS_traits_relative_DNA, "Results/NMDS_psITS_traits_relative_DNA_mip.rds")
+write_rds(NMDS_psITS_traits_relative_RNA, "Results/NMDS_psITS_traits_relative_RNA_mip.rds")
+```
+
+

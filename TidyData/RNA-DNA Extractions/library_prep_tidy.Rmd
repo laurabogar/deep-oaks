@@ -1,0 +1,127 @@
+---
+title: "library_prep_tidy"
+author: "Glade Bogar"
+date: "2024-09-25"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#load required packages:
+```{r}
+library(tidyverse)
+```
+
+#load required data:
+```{r}
+barcodes_16S <- read_csv("../../Data/Nucleic Acid Extractions And Library Prep/Barcode Planning 16S.csv")
+barcodes_ITS <- read_csv("../../Data/Nucleic Acid Extractions And Library Prep/Barcode Planning ITS.csv")
+```
+
+#rename variables for use:
+```{r}
+barcodes_16S <- rename(barcodes_16S, DO_RNA_Box_ID = `DO RNA Box ID`)
+barcodes_16S <- rename(barcodes_16S, DO_DNA_Box_ID = `DO DNA Box ID`)
+barcodes_16S <- rename(barcodes_16S, FWD_barcode_RNA = `16S FWD barcode...2`)
+barcodes_16S <- rename(barcodes_16S, REV_barcode_RNA = `16S REV barcode...3`)
+barcodes_16S <- rename(barcodes_16S, FWD_barcode_DNA = `16S FWD barcode...5`)
+barcodes_16S <- rename(barcodes_16S, REV_barcode_DNA = `16S REV barcode...6`)
+
+barcodes_ITS <- rename(barcodes_ITS, DO_RNA_Box_ID = `DO RNA Box ID`)
+barcodes_ITS <- rename(barcodes_ITS, DO_DNA_Box_ID = `DO DNA Box ID`)
+barcodes_ITS <- rename(barcodes_ITS, FWD_barcode_RNA = `ITS FWD barcode...2`)
+barcodes_ITS <- rename(barcodes_ITS, REV_barcode_RNA = `ITS REV barcode...3`)
+barcodes_ITS <- rename(barcodes_ITS, FWD_barcode_DNA = `ITS FWD barcode...5`)
+barcodes_ITS <- rename(barcodes_ITS, REV_barcode_DNA = `ITS REV barcode...6`)
+
+```
+
+#select out, rename, add signifiers for DNA, RNA; 16S, ITS:
+```{r}
+#DNA_16S
+DNA_16S <- select(barcodes_16S,
+                  DO_DNA_Box_ID,
+                  FWD_barcode_DNA,
+                  REV_barcode_DNA)
+
+DNA_16S <- rename(DNA_16S, Extraction_ID = "DO_DNA_Box_ID")
+DNA_16S <- rename(DNA_16S, FWD_barcode = "FWD_barcode_DNA")
+DNA_16S <- rename(DNA_16S, REV_barcode = "REV_barcode_DNA")
+
+DNA_16S$nucleic_acid <- c("DNA")
+DNA_16S$amplification <- c("PCR_16S")
+
+#DNA_ITS
+DNA_ITS <- select(barcodes_ITS,
+                  DO_DNA_Box_ID,
+                  FWD_barcode_DNA,
+                  REV_barcode_DNA)
+
+DNA_ITS <- rename(DNA_ITS, Extraction_ID = "DO_DNA_Box_ID")
+DNA_ITS <- rename(DNA_ITS, FWD_barcode = "FWD_barcode_DNA")
+DNA_ITS <- rename(DNA_ITS, REV_barcode = "REV_barcode_DNA")
+
+DNA_ITS$nucleic_acid <- c("DNA")
+DNA_ITS$amplification <- c("PCR_ITS")
+
+#RNA_16S
+RNA_16S <- select(barcodes_16S,
+                  DO_RNA_Box_ID,
+                  FWD_barcode_RNA,
+                  REV_barcode_RNA)
+
+RNA_16S <- rename(RNA_16S, Extraction_ID = "DO_RNA_Box_ID")
+RNA_16S <- rename(RNA_16S, FWD_barcode = "FWD_barcode_RNA")
+RNA_16S <- rename(RNA_16S, REV_barcode = "REV_barcode_RNA")
+
+RNA_16S$nucleic_acid <- c("RNA")
+RNA_16S$amplification <- c("PCR_16S")
+
+#RNA_ITS
+RNA_ITS <- select(barcodes_ITS,
+                  DO_RNA_Box_ID,
+                  FWD_barcode_RNA,
+                  REV_barcode_RNA)
+
+RNA_ITS <- rename(RNA_ITS, Extraction_ID = "DO_RNA_Box_ID")
+RNA_ITS <- rename(RNA_ITS, FWD_barcode = "FWD_barcode_RNA")
+RNA_ITS <- rename(RNA_ITS, REV_barcode = "REV_barcode_RNA")
+
+RNA_ITS$nucleic_acid <- c("RNA")
+RNA_ITS$amplification <- c("PCR_ITS")
+```
+
+#bind rows:
+```{r}
+barcodes <- bind_rows(DNA_16S, DNA_ITS, RNA_16S, RNA_ITS)
+barcodes <- na.omit(barcodes)
+```
+
+#write tidied barcodes:
+```{r}
+write_csv(barcodes, "Results/barcodes_tidy_mip.csv")
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

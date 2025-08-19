@@ -1,0 +1,83 @@
+---
+title: "Install required packages"
+author: "Anna Goodman"
+date: "2025-06-04"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+if (!requireNamespace("tidyverse", quietly = TRUE))
+      install.packages('tidyverse') # includes tidyr, dplyr, ggplot2, readr, purrr, tibble, stringr, and forcats
+```
+
+
+# Install Bioconductor's Manager package, prequisite for phyloseq and dada2
+```{r}
+if (!require("BiocManager", quietly = TRUE))
+  install.packages("BiocManager")
+BiocManager::install(version = "3.21")
+```
+
+# Install phyloseq. This may take over an hour
+```{r}
+BiocManager::install("phyloseq")
+```
+
+# Install dada2
+```{r}
+BiocManager::install("dada2")
+```
+
+# Install graphics packages
+```{r}
+
+install.packages("cowplot") # for paneling figures
+install.packages("ggpubr") # for paneling figures
+install.packages("gridGraphics") # for converting base r plots into grobs
+install.packages("stargazer") # for tabels
+```
+
+
+# Install other packages
+```{r}
+
+install.packages("cowplot") # for paneling figures
+install.packages("ggpubr") # for paneling figures
+install.packages("gridGraphics") # for converting base r plots into grobs
+
+install.packages("psych") # for factor analysis
+install.packages("corrplot") # 
+install.packages("vegan") # 
+install.packages("cluster") # 
+install.packages("regclass") # 
+install.packages("diffr") # for verifying consistent file output
+```
+
+```{r}
+if (!requireNamespace("devtools", quietly = TRUE))
+      install.packages('devtools')
+library("devtools")
+devtools::install_github("gauravsk/ranacapa")
+```
+
+
+```{r}
+install.packages("vegan")
+```
+
+```{r}
+# for linear regression
+install.packages("lme4")
+install.packages("lmerTest")
+```
+
+```{r}
+BiocManager::install("DESeq2")
+```
+
+
+

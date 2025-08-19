@@ -1,0 +1,102 @@
+---
+title: "Assign_Fungal_Traits"
+author: "Glade Bogar"
+date: "2024-09-17"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Load required packages:
+```{r}
+library("phyloseq")
+packageVersion("phyloseq")
+
+library("ggplot2")
+packageVersion("ggplot2")
+
+library("tidyverse")
+packageVersion("tidyverse")
+```
+
+#Load phyloseq object:
+```{r}
+psITS <- readRDS("../Phyloseq_ITS/Results/psITS_remove_8_reads.rds")
+```
+
+#import genus-level fungal functional traits from "FungalTraits: a user‐friendly traits database of fungi and fungus‐like stramenopiles Polme et al., 2020", genera - "13225_2020_466_MOESM4_ESM" saved as a .csv:
+```{r}
+fungaltraits_genera <- read.csv("../../../Data/FungalTraits_Genera.csv")
+```
+
+#tidy fungaltraits_genera for left join to taxonomy table:
+```{r}
+fungaltraits_genera <- as_tibble(fungaltraits_genera)
+fungaltraits_genera <- fungaltraits_genera %>% mutate(across(where(is.factor), as.character))
+```
+
+```{r}
+fungaltraits_genera <- dplyr::select(fungaltraits_genera,
+                              -jrk_template,
+                              -Phylum,
+                              -Class,
+                              -Order,
+                              -Family,
+                              -COMMENT.on.genus,
+                              -X)
+```
+
+```{r}
+fungaltraits_genera <- rename(fungaltraits_genera, Genus = GENUS)
+fungaltraits_genera <- rename(fungaltraits_genera, Primary_lifestyle = primary_lifestyle)
+```
+
+```{r}
+fungaltraits_genera$Genus_name <- c("g_")
+```
+
+```{r}
+fungaltraits_genera <- unite(fungaltraits_genera, Genus, Genus_name, Genus, remove = TRUE)
+```
+
+#save formatted fungaltraits_genera for later use:
+```{r}
+saveRDS(fungaltraits_genera, "Results/fungaltraits_genera_mip.rds")
+```
+
+#read taxa table:
+```{r}
+taxa_ITS <- tax_table(psITS)
+taxa_ITS <- taxa_ITS@.Data
+taxa_ITS <- as.data.frame(taxa_ITS)
+```
+
+#Left join fungaltraits onto taxa_ITS, using "Genus":
+```{r}
+taxa_ITS_traits <- left_join(taxa_ITS, fungaltraits_genera, by = "Genus")
+```
+
+#re-format taxa table for phyloseq:
+```{r}
+taxa_ITS_traits <- as.matrix(taxa_ITS_traits)
+row.names(taxa_ITS_traits) <- row.names(taxa_ITS)
+```
+
+#create new tax_table with functions:
+```{r}
+taxa_ITS_traits <- tax_table(taxa_ITS_traits)
+```
+
+#replace the taxonomy table in the original ps:
+```{r}
+tax_table(psITS) <- taxa_ITS_traits
+```
+
+#save new phyloseq object:
+```{r}
+saveRDS(psITS, "Results/psITS_remove_8_reads_fungaltraits_mip.rds")
+```
+
+
