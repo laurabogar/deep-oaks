@@ -1,0 +1,203 @@
+---
+title: "Microbiome Network Analysis: DNA vs RNA (16S)"
+author: "Laura Bogar"
+output: html_document
+---
+
+Note: this is NOT part of the Goodman et al. manuscript; rather, Laura is trying to explore network analyses for additional insight into this data and possible use in teaching.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+
+# Install NetCoMi and dependencies if not already present:
+
+# Huge is required for SpiecEasi, but is old and archived.
+# package_url <- "https://cran.r-project.org/src/contrib/Archive/huge/huge_1.3.5.tar.gz"
+# install.packages(package_url, repos = NULL, type = "source")
+
+# Note: If you don't have FORTRAN (i.e. you're on a Mac), you may need to install it.
+# Download the correct package here: https://mac.r-project.org/tools/
+
+# devtools::install_github("zdk123/SpiecEasi")
+# devtools::install_github("GraceYoon/SPRING")
+# # Then install NetCoMi
+# devtools::install_github("stefpeschel/NetCoMi", 
+#                          repos = c("https://cloud.r-project.org/",
+#                                    BiocManager::repositories()))
+
+# library(here) # Not working 13 Feb 2026
+library(tidyverse)
+library(phyloseq)
+library(NetCoMi)
+
+# here::i_am("Analysis/Networks/")
+setwd("./Analysis/Networks/")
+source("save_network_results.R")
+```
+
+## 1. Load Data
+We are pulling in the 16S relative abundance objects. For this exploratory analysis, we will compare the DNA-only and RNA-only datasets.
+
+```{r load-data}
+# # 16S DNA
+# ps16S_DNA <- read_rds("../../TidyData/Phyloseq/Tidy_relativize_phyloseq_objects/Results/ps16S_relative_DNA_mip.rds")
+
+#16S RNA
+ps16S_RNA <- read_rds("../../TidyData/Phyloseq/Tidy_relativize_phyloseq_objects/Results/ps16S_relative_RNA_mip.rds")
+
+# # ITS DNA
+# psITS_relative_DNA <- read_rds("../../TidyData/Phyloseq/Tidy_relativize_phyloseq_objects/Results/psITS_relative_DNA_mip.rds")
+
+# ITS RNA
+psITS_RNA <- read_rds("../../TidyData/Phyloseq/Tidy_relativize_phyloseq_objects/Results/psITS_relative_RNA_mip.rds")
+```
+
+## 2. Pre-processing & Filtering
+Networks are very sensitive to "noise." If an ASV only appears in one sample, it can create a spurious correlation. We will filter to keep only the most prevalent taxa (e.g., present in >10% of samples).
+
+```{r filtering}
+# Function to filter rare taxa to keep the network manageable and meaningful
+filter_ps <- function(ps) {
+  # Keep ASVs present in at least 10% of samples
+  ps_filtered <- filter_taxa(ps, function(x) sum(x > 0) > (0.10 * length(x)), TRUE)
+  return(ps_filtered)
+}
+
+# ps_dna_filt <- filter_ps(ps16S_DNA)
+ps16_rna_pref <- filter_ps(ps16S_RNA)
+psITS_rna_pref <- filter_ps(psITS_RNA)
+
+# 2. Abundance Filter: Keep only the top 300 or 400 taxa
+# For 27 samples, 300 taxa is plenty for a robust network.
+top300_rna_names <- names(sort(taxa_sums(ps16_rna_pref), decreasing = TRUE)[1:300])
+ps16_rna_filt <- prune_taxa(top300_rna_names, ps16_rna_pref)
+
+top300_rna_names_ITS <- names(sort(taxa_sums(psITS_rna_pref), decreasing = TRUE)[1:300])
+
+psITS_rna_filt <- prune_taxa(top300_rna_names_ITS, psITS_rna_pref)
+
+ntaxa(psITS_rna_filt)
+# MAKING A TEST SET
+
+# Define the names of the top 50 taxa by total abundance
+# top50_names <- names(sort(taxa_sums(ps16S_relative_DNA), decreasing = TRUE)[1:50])
+# 
+# # Prune the phyloseq object to keep only those names
+# ps_test <- prune_taxa(top50_names, ps16S_relative_DNA)
+
+# Aggregating to Genus level (optional, but makes plots cleaner for students)
+# ps_dna_gen <- tax_glom(ps_dna_filt, taxrank = "Genus")
+# ps_rna_gen <- tax_glom(ps_rna_filt, taxrank = "Genus")
+```
+
+## 3. Constructing the Network
+We use the `netConstruct` function. We'll use the **SparCC** method, which is robust for compositional microbiome data.
+
+```{r construct}
+# We create a combined network object to compare the two "groups" (DNA vs RNA)
+
+# net_comp_TEST <- netConstruct(ps_test,
+#                          measure = "sparcc",
+#                          filtTax = "none", # We already filtered manually
+#                          normMethod = "none", # SparCC handles compositionality
+#                          sparsMethod = "threshold",
+#                          thresh = 0.3, # Only show correlations > 0.3
+#                          cores = 7,
+#                          verbose = 3) 
+
+# 1. Setup Parallel Cores
+# Using 7 out of 8 to leave 1 for the OS
+cores_to_use <- 7
+
+# 2. Run the RNA 16S Network
+message("Starting 16S Network...")
+net_16s <- netConstruct(ps16_rna_filt, 
+                        measure = "sparcc", 
+                        cores = cores_to_use, 
+                        filtTax = "none", # We already filtered manually
+                        normMethod = "none", # SparCC handles compositionality
+                         sparsMethod = "none",
+                        # thresh = 0.2 # Only show correlations > 0.2
+                        verbose = 3) 
+                        
+
+analyzed_16s <- netAnalyze(net_16s)
+
+# 3. Run the RNA ITS Network
+message("Starting ITS Network...")
+net_its <- netConstruct(psITS_rna_filt, 
+                        measure = "sparcc", 
+                        cores = cores_to_use, 
+                        filtTax = "none", # We already filtered manually
+                        normMethod = "none", # SparCC handles compositionality
+                        sparsMethod = "threshold",
+                        verbose = 3,
+                        thresh = 0.2) # Only show correlations > 0.2
+analyzed_its <- netAnalyze(net_its)
+
+# 4. Run the Cross-Domain Network
+message("Launching Cross-Domain (16S + ITS) RNA Network...")
+
+net_cross <- netConstruct(data = ps16_rna_filt, 
+                          data2 = psITS_rna_filt, # Passing the second kingdom here
+                          measure = "sparcc",
+                          normMethod = "none",
+                          sparsMethod = "threshold",
+                          thresh = 0.2, 
+                          cores = 7,
+                          verbose = 3)
+
+# 5. Analyze it
+analyzed_cross <- netAnalyze(net_cross, hubPar = "eigenvector")
+
+# 6. COLLECT EVERYTHING INTO ONE LIST
+# This is the "Master List" the helper function will use
+final_networks_list <- list(
+  "16S_DNA"      = analyzed_16s,
+  "ITS_DNA"      = analyzed_its,
+  "Cross_Domain" = analyzed_cross
+)
+
+# 7. EXPORT ALL AT ONCE
+# This creates the folder and saves all 3 files using the names above
+save_network_results(final_networks_list, path = "Finished_Networks_Feb13")
+
+```
+
+
+
+<!-- ## 4. Network Analysis (Centrality) -->
+<!-- Who are the "hubs" or "influencers" in these networks? We calculate properties like Degree and Eigenvector Centrality. -->
+
+<!-- ```{r analyze} -->
+<!-- net_analyzed <- netAnalyze(net_comp,  -->
+<!--                            centrLCC = TRUE,  -->
+<!--                            avDist = TRUE, -->
+<!--                            hubPar = "eigenvector") -->
+<!-- ``` -->
+
+<!-- ## 5. Visualization -->
+<!-- Now we plot the two networks side-by-side. We will color the nodes by Phylum to see if certain groups (like Proteobacteria) cluster together. -->
+
+<!-- ```{r plot, fig.width=12, fig.height=8} -->
+<!-- plot(net_analyzed,  -->
+<!--      shortenLabels = "none", -->
+<!--      labelScale = FALSE, -->
+<!--      rmSmallConnect = TRUE, -->
+<!--      # Color by Phylum (Tax rank 2 usually) -->
+<!--      nodeColor = "rank",  -->
+<!--      featVecCol = 2,  -->
+<!--      # Highlight Hubs -->
+<!--      hubBorderCol = "black", -->
+<!--      title1 = "16S DNA Network (Potential)",  -->
+<!--      title2 = "16S RNA Network (Active)", -->
+<!--      showLegend = TRUE) -->
+<!-- ``` -->
+
+<!-- ## 6. Comparison Statistics -->
+<!-- Is the DNA network significantly different from the RNA network? `netCompare` uses permutation tests to find out. -->
+
+<!-- ```{r compare} -->
+<!-- comp_stats <- netCompare(net_analyzed, permTest = FALSE) # Set permTest = TRUE for final paper -->
+<!-- summary(comp_stats) -->
+<!-- ``` -->

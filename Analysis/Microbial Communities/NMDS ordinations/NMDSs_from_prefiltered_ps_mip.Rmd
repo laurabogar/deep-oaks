@@ -9,7 +9,7 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-# Preform ordination
+# Perform ordination
 
 #   16S ASVs, DNA - only, with fitted Factor Analysis sample metadata vectors; color by trees (custom; living warm tone, dead cold tone), opacity by depth (outline original color)
 #   ITS ASVs, DNA - only, with fitted Factor Analysis sample metadata vectors
