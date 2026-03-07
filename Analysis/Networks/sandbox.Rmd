@@ -1,0 +1,334 @@
+---
+title: "ATM298 first exploration"
+author: "Anna Goodman"
+date: "2026-02-18"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(phyloseq)
+library(tidyverse)
+```
+
+
+```{r}
+psITS_relative_RNA = readRDS("../../TidyData/Phyloseq/Tidy_relativize_phyloseq_objects/Results/psITS_relative_RNA_mip.rds")
+```
+
+```{r}
+psITS_relative_DNA
+```
+
+
+```{r}
+
+ps_df = data.frame(tax_table(psITS_relative_DNA))
+head(ps_df)
+colnames(ps_df)
+
+just_tax = ps_df[1:8,]
+head(just_tax)
+```
+```{r}
+
+ps_otu_df = data.frame(otu_table(psITS_relative_DNA))
+head(ps_otu_df)
+colnames(ps_otu_df)
+rownames(ps_otu_df)
+```
+
+maybe clean up the asvs by assigning them numbers instead of full sequences
+
+```{r}
+tidy_otu = rename(ps_otu_df, 1:length(ps_otu_df) = colnames(ps_otu_df))
+```
+
+go from core barcode pair ->(join sample data)-> core ->(depth filter)-> tree 
+```{r}
+sample_df = data.frame(sample_data(psITS_relative_RNA))
+head(sample_df)
+```
+```{r}
+barcode_key = select(sample_df, DO_ID)
+barcode_key = rownames_to_column(barcode_key, var = "barcodes")
+head(barcode_key)
+```
+
+replace barcodes in otu table with core ids
+```{r}
+tidy_otu <- ps_otu_df %>% 
+  rownames_to_column(var = "barcodes") %>%
+  left_join(barcode_key, by = "barcodes") %>%
+  relocate(DO_ID, .after = barcodes) # moves the ID column to the front instead of being after all the asv-specific columns
+
+head(colnames(tidy_otu))
+tidy_otu$DO_ID # all NA :()
+```
+```{r}
+tidy_otu %>% filter(barcodes %in% barcode_key$barcodes) # none, no matches
+```
+```{r}
+setdiff(tidy_otu$barcodes, barcode_key$barcodes) # all different; no matches
+```
+
+concerning that the barcodes do not match in the sample_data() and otu_table() extracted from the same ps object 
+
+going back to an earlier/more complete source for matching barcodes and core ids
+```{r}
+extraction_and_amplification_metadata_mip = read_csv("../../TidyData/Metadata/Results/extraction_and_amplification_metadata_mip.csv")
+```
+```{r make a better key}
+all_barcodes = extraction_and_amplification_metadata_mip %>%
+  select(c(FWD_barcode, REV_barcode, nucleic_acid, amplification, DO_ID))
+
+head(all_barcodes_key)
+
+all_barcodes_concat = all_barcodes %>% 
+  mutate(barcodes = str_c(REV_barcode, "_", FWD_barcode, ".fastq.gz"))
+
+head(all_barcodes_concat)
+```
+
+```{r which barcodes are actually in this otu table?}
+in_psITS_relative_RNA = all_barcodes_concat %>% 
+  filter(barcodes %in% tidy_otu$barcodes) # none, no matches
+
+View(in_psITS_relative_RNA) # none.. what the hell
+```
+
+```{r}
+setdiff(all_barcodes_concat$barcodes, tidy_otu$barcodes) ## OOOOKAY what it is is otu table barcodes have "DO_" at the front and the others don't. ok
+```
+
+```{r}
+all_barcodes_DO = all_barcodes_concat %>% 
+  mutate(barcodes = str_c("DO_", barcodes))
+
+head(all_barcodes_DO$barcodes) # worked
+```
+
+```{r which barcodes are actually in this otu table?}
+in_psITS_relative_RNA = all_barcodes_DO %>% 
+  filter(barcodes %in% tidy_otu$barcodes) # none, no matches
+
+View(in_psITS_relative_RNA) # STILL none.. what the hell
+```
+
+```{r}
+head(tidy_otu$barcodes) # OOOOKAY these have the R1 (and R2? -> no! just r1
+```
+at this point I have realized that maybe using the phyloseq object is a little too far upstream, but I want to check and make sure that this phyloseq object does have barcodes that match in the sample data vs the otu table
+```{r}
+# start over concatenating bc I don't remember how to split
+all_barcodes_DO_R1 = all_barcodes %>% 
+  mutate(barcodes = str_c("DO_", REV_barcode, "_", FWD_barcode, "_R1.fastq.gz"))
+head(all_barcodes_DO_R1)
+```
+
+```{r which barcodes are actually in this otu table?}
+in_psITS_relative_RNA_OTU = all_barcodes_DO_R1 %>% 
+  filter(barcodes %in% tidy_otu$barcodes) 
+
+View(in_psITS_relative_RNA) # ok matches now!! but they are all DNA :( uh oh
+```
+
+OH ok literally I just made a mistake in extracting the tables. ooof. 
+
+
+```{r}
+rna = readRDS("../../TidyData/Phyloseq/Tidy_relativize_phyloseq_objects/Results/psITS_relative_RNA_mip.rds")
+dna = readRDS("../../TidyData/Phyloseq/Tidy_relativize_phyloseq_objects/Results/psITS_relative_RNA_mip.rds")
+```
+
+```{r}
+rna_otu = data.frame(otu_table(rna))
+rna_barcodes = rownames (rna_otu)
+```
+
+```{r which barcodes are actually in THE RNA otu table?}
+rna_forreal = all_barcodes_DO_R1 %>% 
+  filter(barcodes %in% rna_barcodes) 
+
+View(rna_forreal) # ok phew it's fine
+```
+
+ok so now back to business: make a do_id column in a version of the otu table
+replace barcodes in otu table with core ids
+```{r}
+better_barcode_key =  all_barcodes_DO_R1 %>% 
+  select(barcodes, DO_ID)
+
+otu_ids <- ps_otu_df %>% 
+  rownames_to_column(var = "barcodes") %>%
+  left_join(better_barcode_key, by = "barcodes") %>%
+  relocate(DO_ID, .after = barcodes) # moves the ID column to the front instead of being after all the asv-specific columns
+
+head(colnames(otu_ids))
+otu_ids$DO_ID # yayyyy it worked!
+```
+ok now let's filter for depth
+```{r}
+deep_suffixes = c("22.5-30", "30-37.5") # omitting deepest core bc we don't have rna data for it in all trees
+pattern_string = paste(deep_suffixes, collapse = "|") # separate these options by the or operator |
+otu_deeper = otu_ids %>%
+  filter(str_ends(DO_ID, pattern_string))
+
+head(otu_deeper) # ok yay. but actually I just want one depth for now, for simplicity
+```
+```{r}
+otu_30 = otu_ids %>%
+  filter(str_ends(DO_ID, "30-37.5"))
+
+otu_30$DO_ID # just realized tree 7 doesn't have any deeper cores than 22.5. for now, oh well
+```
+
+```{r}
+otu_30_pivoted = otu_30 %>%
+  select(!barcodes) %>% # take the barcode column out
+  pivot_longer(cols = -DO_ID) %>% # don't pivot the ID column 
+  filter(value !=0) %>% # keep only rows where the relative abundance is not 0
+  rename(c(ASV = name, relabund = value)) # name new columns
+
+head(otu_30_pivoted) #ok I think that worked. now I have 3 columns:
+# DO ID, asv's whole sequence, and the relative abundance. 
+```
+
+
+ok!! let's try doing igraph with this 
+
+```{r}
+# it's not quite an edgelist yet; relabunds need to come out temporarily
+edge_relabunds = otu_30_pivoted$relabund
+
+edgelist = otu_30_pivoted %>%
+  select(DO_ID, ASV)
+
+# also, having the full asv sequences is getting distracting but I don't want to deal with taxa quite yet. 
+#assigning numbers?
+
+edgelist_nicknames = edgelist %>% mutate(ASV = 1:length(edgelist$ASV))
+nickname_key = data.frame(fullname = edgelist$ASV, nickname = edgelist_nicknames$ASV) # store for later
+head(edgelist_nicknames)
+tail(edgelist_nicknames) # worked. looks like we only hav 1137 ASVs now that we're just filtered to one depth
+```
+
+ok woohooo let's make it an igraph object!
+```{r}
+library(igraph)
+
+edgelist.mat = as.matrix(edgelist_nicknames)
+igo = graph.edgelist(edgelist.mat, directed = FALSE)
+igo
+```
+explore object a bit
+```{r}
+# look at first 100 vertices
+V(igo)[[1:100]]
+
+E(igo) # all edges
+```
+```{r}
+# find all edges including a given tree
+E(igo)[[.inc("DO_T04_30-37.5")]]
+```
+edge attributes
+```{r}
+edge_attr(igo) # returns "named list()" before I added any
+
+igo_edges = igo %>%
+  set_edge_attr("relabund", value = edge_relabunds) # edge_relabunds is list I made before
+
+edge_attr(igo_edges) # now it gives all of the values of relabund! how nice
+```
+
+```{r}
+E(igo_edges)[[relabund>0.05]] # nice. this works well!
+```
+```{r}
+plot(igo)
+```
+```{r}
+plot(igo_edges)
+```
+let me add some vertex attributes before we go farther. I might need to go back a few steps to save more metadata for this 
+
+
+```{r}
+phylo = read.csv("../../TidyData/Metadata/Results/phyloseq_metadata_ITS_mip.csv")
+psm = read.csv("../../TidyData/Metadata/Results/per_sample_metadata_mip.csv")
+ea = read.csv("../../TidyData/Metadata/Results/extraction_and_amplification_metadata_mip.csv")
+```
+
+```{r}
+psm_edgelist_nicknames = edgelist_nicknames %>%
+  left_join(psm, by = "DO_ID")
+
+head(psm_edgelist_nicknames) # ok now this has soooo much metadata lined up with the edgelist
+
+# it's aligned with the edgelist, though .. because the vertext list would also have all the asvs in it, which seems sub-ideal. we don't have 
+```
+
+```{r}
+v_list = V(igo_edges) # yeah there's 1142 edges. can I just left_join twice, once with asv metadata and once with tree metadata?
+
+v_df = data.frame(v_list)
+
+v_df_metadata = v_df %>%
+  rename(DO_ID = v_list) %>%
+  mutate(DO_ID = as.character(DO_ID)) %>%
+  left_join(psm, by = "DO_ID")
+
+tail(v_df_metadata) # I'm just seeing a lot of NAs with head and tail
+
+filter(v_df_metadata, !(is.na(v_df_metadata$Tree))) # 0 rows. didn't work. were there ever any tree verticies?
+View(v_df) # ohh the actual values are in the rownames. yikes
+```
+
+```{r}
+# fix rowname issue and try again
+v_df_cols = v_df %>%
+  rownames_to_column(var = "vertex")
+
+v_df_metadata = v_df_cols %>%
+   mutate(vertex = as.character(vertex)) %>%
+  #rename(DO_ID = vertex) %>%
+  left_join(psm, join_by( "vertex"=="DO_ID")) %>%
+
+head(v_df_metadata) # yay that worked!
+```
+
+```{r}
+# ok now to add the asv vertex metadata
+# I forgot what I named the tax_table earlier so let's get it again
+tt = tax_table(psITS_relative_RNA)
+
+nickname_key_char = nickname_key %>%
+  mutate(nickname = as.character(nickname))
+
+v_both_metadata = v_df_metadata %>%
+  left_join(nickname_key_char, join_by("vertex" == "nickname")) %>%
+  relocate(fullname, .after = vertex)
+
+head(v_both_metadata) # ok that did not work
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,303 @@
+
+
+---
+title: "sandbox5: phylum"
+author: "Anna Goodman"
+date: "2026-02-25"
+output: html_document
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(phyloseq)
+library(tidyverse)
+```
+
+
+```{r}
+rna = readRDS("../../TidyData/Phyloseq/Tidy_relativize_phyloseq_objects/Results/psITS_relative_RNA_mip.rds")
+dna = readRDS("../../TidyData/Phyloseq/Tidy_relativize_phyloseq_objects/Results/psITS_relative_RNA_mip.rds")
+```
+
+```{r}
+rna_otu = data.frame(otu_table(rna))
+rna_barcodes = rownames (rna_otu)
+rna_tt = tax_table(rna)
+```
+
+going back to an earlier/more complete source for matching barcodes and core ids
+
+```{r make a key linking barcode pairs to DO_ID}
+extraction_and_amplification_metadata_mip = read_csv("../../TidyData/Metadata/Results/extraction_and_amplification_metadata_mip.csv")
+
+all_barcodes = extraction_and_amplification_metadata_mip %>%
+  select(c(FWD_barcode, REV_barcode, nucleic_acid, amplification, DO_ID))
+
+all_barcodes_DO_R1 = all_barcodes %>% 
+  mutate(barcodes = str_c("DO_", REV_barcode, "_", FWD_barcode, "_R1.fastq.gz"))
+head(all_barcodes_DO_R1)
+```
+
+ok so now back to business: make a do_id column in a version of the otu table
+replace barcodes in otu table with core ids
+
+```{r} 
+better_barcode_key =  all_barcodes_DO_R1 %>% 
+  select(barcodes, DO_ID)
+
+otu_ids <- rna_otu %>% 
+  rownames_to_column(var = "barcodes") %>%
+  left_join(better_barcode_key, by = "barcodes") %>%
+  relocate(DO_ID, .after = barcodes) # moves the ID column to the front instead of being after all the asv-specific columns
+
+head(colnames(otu_ids))
+otu_ids$DO_ID # yayyyy it worked!
+```
+
+
+
+
+ok now let's filter for depth
+```{r}
+deep_suffixes = c("22.5-30", "30-37.5", "15-22.5") # omitting deepest core bc we don't have rna data for it in all trees
+pattern_string = paste(deep_suffixes, collapse = "|") # separate these options by the or operator |
+otu_deeper = otu_ids %>%
+  filter(str_ends(DO_ID, pattern_string))
+
+head(otu_deeper) # ok yay. but actually I just want one depth for now, for simplicity
+unique(otu_deeper$DO_ID)
+```
+
+```{r}
+otu_deeper_pivoted = otu_deeper %>%
+  select(!barcodes) %>% # take the barcode column out
+  pivot_longer(cols = -DO_ID) %>% # don't pivot the ID column 
+  filter(value !=0) %>% # keep only rows where the relative abundance is not 0
+  rename(c(ASV = name, relabund = value)) # name new columns
+
+head(otu_deeper_pivoted) #ok I think that worked. now I have 3 columns:
+# DO ID, asv's whole sequence, and the relative abundance. 
+```
+
+can I also get taxonomy in here to replace ASVs?
+```{r}
+# first I need to get the taxonomy sorted. I want 
+# 1) a column with just the most specific assgined taxon for each asv
+# 2) a column with the column with the most specific taxon common to all asvs
+
+# 1: 
+tt_df = data.frame(rna_tt)
+tax_only = tt_df %>%
+  select(Kingdom, Phylum, Class, Order, Genus, Species) %>% #filter tax table to just tax, not functional groups
+  mutate(most_specific = coalesce(Species, Genus, Order, Class, Phylum, Kingdom)) %>% 
+  rownames_to_column(var = "ASV")
+
+colnames(tax_only) # nice
+
+# join this to otu_deeper_pivoted
+
+ids_deeper = otu_deeper_pivoted %>%
+  left_join(tax_only, by = "ASV")
+
+head(ids_deeper)
+```
+
+ok!! let's try doing igraph with this 
+
+```{r}
+# some asvs may have been asigned to the same species. time to filter for speces, but we need to add the relative abundances together for all asvs that are the same species. first, check
+# - check if all asvs are actually unique 
+
+# which(duplicated(ids_deeper$ASV))
+
+edgelist = ids_deeper %>%
+ select(DO_ID, Phylum) %>%
+  mutate(Phylum = replace_na(Phylum, "Unknown"))
+
+# hold relative abudndances for each edge in the same order of the edgelist in a separate varialbe
+edge_relabunds = ids_deeper$relabund
+```
+
+ok woohooo let's make it an igraph object!
+```{r}
+library(igraph)
+
+edgelist.mat = as.matrix(edgelist)
+igo = graph.edgelist(edgelist.mat, directed = FALSE)
+igo
+```
+explore object a bit
+```{r}
+# look at first 10 vertices
+V(igo)[[1:10]]
+
+E(igo)[[1:10]] # first 10 edges
+```
+```{r}
+# find all edges including a given tree
+E(igo)[[.inc("DO_T06_30-37.5")]]
+E(igo)[[.inc("DO_T05_15-22.5")]]
+```
+edge attributes
+```{r}
+edge_attr(igo) # returns "named list()" before I added any
+
+
+
+igo_edges = igo %>%
+  set_edge_attr("relabund", value = edge_relabunds) # edge_relabunds is list I made before
+
+ # edge_attr(igo_edges) # now it gives all of the values of relabund! how nice
+```
+
+```{r}
+E(igo_edges)[[relabund>0.05]] # nice. this works well!
+```
+```{r}
+plot(igo)
+```
+```{r}
+plot(igo_edges) # why are these different?
+```
+let me add some vertex attributes before we go farther. I might need to go back a few steps to save more metadata for this 
+
+
+```{r}
+phylo = read.csv("../../TidyData/Metadata/Results/phyloseq_metadata_ITS_mip.csv")
+psm = read.csv("../../TidyData/Metadata/Results/per_sample_metadata_mip.csv")
+ea = read.csv("../../TidyData/Metadata/Results/extraction_and_amplification_metadata_mip.csv")
+```
+
+```{r}
+# psm_edgelist_nicknames = edgelist_nicknames %>%
+ # left_join(psm, by = "DO_ID")
+
+# head(psm_edgelist_nicknames) # ok now this has soooo much metadata lined up with the edgelist
+
+# it's aligned with the edgelist, though .. because the vertext list would also have all the asvs in it, which seems sub-ideal. we don't have 
+```
+
+```{r}
+v_list = V(igo_edges) 
+length(v_list) # yeah there's 4177 vertices. can I just left_join twice, once with asv metadata and once with tree metadata?
+
+v_df = data.frame(v_list)
+
+v_df_metadata = v_df %>%
+  rename(DO_ID = v_list) %>%
+  mutate(DO_ID = as.character(DO_ID)) %>%
+  left_join(psm, by = "DO_ID")
+
+tail(v_df_metadata) # I'm just seeing a lot of NAs with head and tail
+
+filter(v_df_metadata, !(is.na(v_df_metadata$Tree))) # 0 rows. didn't work. were there ever any tree verticies?
+View(v_df) # ohh the actual values are in the rownames. yikes
+```
+
+```{r}
+# fix rowname issue and try again
+v_df_cols = v_df %>%
+  rownames_to_column(var = "vertex")
+
+v_df_metadata = v_df_cols %>%
+  select(vertex) %>%
+  mutate(vertex = as.character(vertex)) %>%
+  left_join(psm, join_by( "vertex"=="DO_ID"))
+
+head(v_df_metadata) # yay that worked!
+```
+
+
+```{r add vertex attributes?}
+depth = v_df_metadata$sample_depth_cm
+treeID = v_df_metadata$Tree
+mortality = v_df_metadata$Tree_Health
+
+igo_both = igo_edges %>%
+  set_vertex_attr("depth", value = depth) %>%
+  set_vertex_attr("treeID", value = treeID) %>%
+  set_vertex_attr("mortality", value = mortality) 
+
+vertex_attr(igo_both) #worked
+```
+
+```{r color nodes by tree health}
+
+V(igo_both)$color <- case_when(
+  V(igo_both)$mortality == "dead"   ~ "red3",
+  V(igo_both)$mortality == "living" ~ "green4",
+  is.na(V(igo_both)$mortality)      ~ "gray", # Explicitly handle NAs
+  TRUE                              ~ "gray"  # Catch-all for anything else
+)
+
+```
+
+
+```{r}
+plot(igo_both, vertex.label.color = "black")
+```
+
+```{r}
+test_layouts = function(x, m) {
+  plot(x, vertex.label.color = "black", layout = m)
+}
+
+circle = layout_in_circle(igo_both)
+fr = layout_with_fr(igo_both)
+tree = layout_as_tree(igo_both)
+nice = layout_nicely(igo_both)
+```
+
+```{r}
+test_layouts(igo_both, circle)
+```
+```{r}
+test_layouts(igo_both, nice)
+```
+
+```{r}
+test_layouts(igo_both,tree)
+```
+```{r}
+test_layouts(igo_both, fr)
+```
+can I make this readable?
+```{r}
+plot(igo_both, vertex.label.color = "black", vertex.label.cex = 0.5, layout = layout_with_lgl(igo_both))
+
+```
+
+
+```{r}
+plbs = read.csv("../Microbial Communities/Assign_traits_ITS/Results/ITS_Functions_By_Sample/Primary_lifestyle_by_sample_mip.csv")
+
+colnames(plbs)
+rownames(plbs)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

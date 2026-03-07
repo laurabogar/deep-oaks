@@ -1,0 +1,38 @@
+---
+title: "sandbox2"
+author: "Anna Goodman"
+date: "2026-02-19"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyr)
+library(phyloseq)
+library(igraph)
+```
+
+let's see what kinda metadata we're working with
+```{r}
+phylo = read.csv("../../TidyData/Metadata/Results/phyloseq_metadata_ITS_mip.csv")
+psm = read.csv("../../TidyData/Metadata/Results/per_sample_metadata_mip.csv")
+ea = read.csv("../../TidyData/Metadata/Results/extraction_and_amplification_metadata_mip.csv")
+```
+
+```{r}
+colnames(psm)
+```
+```{r}
+colnames(phylo) # seems the same
+```
+```{r}
+colnames(ea)
+```
+
+
+
+
+
