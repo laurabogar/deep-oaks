@@ -211,6 +211,64 @@ write.csv(bac_otu_doid, "Results/bac_otu_genus_glom.csv")
 write.csv(fun_otu_doid, "Results/fun_otu_genus_glom.csv")
 ```
 
+```{r}
+write_rds(ps_bac_nodes, "Results/ps_bac_genus_glom.rds")
+write_rds(ps_fun_nodes, "Results/ps_fun_genus_glom.rds")
+```
+
+```{r}
+# get final taxonomy tables and metadata
+write.csv(as.data.frame(tax_table(ps_bac_nodes)), "Results/bac_tax_genus_glom.csv")
+write.csv(as.data.frame(tax_table(ps_fun_nodes)), "Results/fun_tax_genus_glom.csv")
+
+```
+
+#ok actually we need to have a stable node id
+```{r}
+#bt = bacterial taxon
+#ft = fungal taxon
+#tid = taxon id
+
+# all nodes/taxa will be ROWS in tax table and COLUMNS in otu table
+# so 
+bac_tt = as.data.frame(tax_table(ps_bac_nodes))
+
+bac_tt = bac_tt %>%
+  mutate(tid = paste0("bt_",1:length(bac_tt$Genus)))
+
+colnames(bac_tt)
+head(bac_tt$tid)
+
+bt_key = bac_tt %>%
+  select(tid, Genus)
+
+fun_tt = as.data.frame(tax_table(ps_fun_nodes))
+
+fun_tt = fun_tt %>%
+  mutate(tid = paste0("ft_",1:length(fun_tt$Genus)))
+
+colnames(fun_tt)
+head(fun_tt$tid)
+
+ft_key = fun_tt %>%
+  select(tid, Genus)
+
+
+tid_key = rbind(ft_key, bt_key)
+```
+
+```{r}
+# get final taxonomy tables and metadata
+write.csv(bac_tt, "Results/bac_tax_genus_glom.csv")
+write.csv(fun_tt, "Results/fun_tax_genus_glom.csv")
+
+# write keys too
+write.csv(tid_key, "Results/tid_key.csv")
+
+
+```
+
+
 
 
 

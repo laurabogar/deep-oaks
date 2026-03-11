@@ -12,11 +12,15 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r}
 library(dplyr)
 library(igraph)
+library(phyloseq)
 ```
-
+Read in otu tables
 ```{r}
 bac = read_csv("Results/bac_otu_genus_glom.csv")
 fun = read_csv("Results/fun_otu_genus_glom.csv")
+
+# and taxon id key
+tid_key = read_csv("Results/tid_key.csv")
 ```
 
 ```{r}
@@ -25,6 +29,15 @@ both = fun %>% left_join(bac, by = "DO_ID") %>% # left join because fewer sample
   column_to_rownames(var = "DO_ID")
 
 # am I loosing primary lifestyle here?
+#no, it was never in the otu tables
+
+# change taxon names on both to tid "taxon ID"
+tids = tid_key$tid[match(colnames(both), tid_key$Genus)] # make sure tid_key is in the right order
+
+
+colnames(both) = ifelse(is.na(tids), colnames(both), tids) # handle cases where a name isn't in the lookup (keep original)
+
+head(colnames(both))
 ```
 
 
@@ -32,16 +45,157 @@ both = fun %>% left_join(bac, by = "DO_ID") %>% # left join because fewer sample
 # calculate correlation matrix
 cor_matrix = cor(both, method = "spearman")
 
-# Set a threshold (e.g., correlations > 0.6 are edges)
-cor_matrix[abs(cor_matrix) < 0.6] <- 0
+# did we loose our bacteria here?
+any(startsWith(colnames(cor_matrix), "b"))
+any(startsWith(rownames(cor_matrix), "b"))
+
+```
+
+Make the edgelist
+```{r}
+edgelist = cor_matrix %>%
+  as.data.frame() %>%
+  rownames_to_column(var = "taxonA") %>%
+  pivot_longer(-taxonA, names_to = "taxonB", values_to = "correlation") %>%
+  filter(taxonA != taxonB) %>% # remove self pairs
+  filter(taxonA < taxonB) %>%   # filter to remove redundant pairs
+  filter(correlation > 0.1) # only show strong correlations
+  
+
+head(edgelist)
+nrow(edgelist) # check number of edges
+
+# did we loose our bacteria here? no
+any(startsWith(edgelist$taxonA, "b"))
+any(startsWith(edgelist$taxonB, "b"))
+# yes!
+```
+```{r}
+# make igraph object
+cooc = graph_from_data_frame(d = edgelist, directed = FALSE)
+```
+
+```{r}
+#explore graph
+length(V(cooc))
+head(V(cooc)$name)
+```
+
+add some metadata
+```{r}
+# make a dataframe with all the taxonomy
+
+bac_tax = read.csv("Results/bac_tax_genus_glom.csv")
+fun_tax = read.csv("Results/fun_tax_genus_glom.csv")
+
+bac_tax = bac_tax %>%
+  mutate(Primary_lifestyle = "bacteria") %>%
+  select(c(Kingdom, Phylum, Class, Order, Family, Genus, Primary_lifestyle, tid))
+
+fun_tax = fun_tax %>%
+  select(c(Kingdom, Phylum, Class, Order, Family, Genus, Primary_lifestyle, tid))
+
+
+all_tax = rbind(fun_tax, bac_tax)
+
+# make sure its order matches the vertex list
+at_order = all_tax[match(V(cooc)$name, all_tax$tid),] # this is broken -- doesn't work for things not assigned to genus. needed to have stable ASV id or node id :(
+```
+
+```{r}
+unique(V(cooc_tax)$Kingdom)
 ```
 
 
 ```{r}
-net <- graph_from_data_frame(d = edge_list, directed = FALSE)
 
-# You can now color nodes based on Kingdom
-V(net)$kingdom <- ifelse(V(net)$name %in% taxa_names(ps_bacteria), "Bacteria", "Fungi")
-plot(net, vertex.color = as.factor(V(net)$kingdom))
+cooc_tax = set_vertex_attr(cooc, "Kingdom", value = at_order$Kingdom) 
+cooc_tax = set_vertex_attr(cooc_tax, "Phylum", value = at_order$Phylum) 
+cooc_tax = set_vertex_attr(cooc_tax, "Class", value = at_order$Class) 
+cooc_tax = set_vertex_attr(cooc_tax, "Order", value = at_order$Order) 
+cooc_tax = set_vertex_attr(cooc_tax, "Family", value = at_order$Family) 
+cooc_tax = set_vertex_attr(cooc_tax, "Primary_lifestyle", value = at_order$Primary_lifestyle) 
 ```
+
+# color nodes
+```{r}
+unique(V(cooc_tax)$Primary_lifestyle)
+```
+
+```{r color nodes}
+
+V(cooc_tax)$color <- case_when(
+  V(cooc_tax)$Primary_lifestyle == "ectomycorrhizal"   ~ "#C87A8A",
+  V(cooc_tax)$Primary_lifestyle == "arbuscular_mycorrhizal" ~ "#FFB6C1",
+  # give the "plant pathogens and saprotrophs" variations on dark goldenrod and dark orange
+  V(cooc_tax)$Primary_lifestyle == "unspecified_saprotroph" ~ "#B8860B",
+  V(cooc_tax)$Primary_lifestyle == "dung_saprotroph" ~ "#8B6508",
+  V(cooc_tax)$Primary_lifestyle == "soil_saprotroph" ~ "#CD950C",
+  V(cooc_tax)$Primary_lifestyle == "wood_saprotroph" ~ "#EEAD0E",
+  V(cooc_tax)$Primary_lifestyle == "litter_saprotroph" ~ "#FFB90F",
+  V(cooc_tax)$Primary_lifestyle == "plant_pathogen" ~ "#FF8C00",
+  V(cooc_tax)$Primary_lifestyle == "pollen_saprotroph" ~ "darkorange1",
+  V(cooc_tax)$Primary_lifestyle == "nectar/tap_saprotroph" ~ "darkorange2",
+  # give "all other lifestyles" variations on light blue
+  V(cooc_tax)$Primary_lifestyle == "mycoparasite" ~ "#ADD8E6",
+  V(cooc_tax)$Primary_lifestyle == "lichen_parasite" ~ "#BFEFFF",
+  V(cooc_tax)$Primary_lifestyle == "lichenized" ~ "#B2DFEE",
+  V(cooc_tax)$Primary_lifestyle == "animal_parasite" ~ "#9AC0CD",
+  V(cooc_tax)$Primary_lifestyle == "epiphyte" ~ "#68838B",
+  V(cooc_tax)$Primary_lifestyle == "root_endophyte" ~ "lightcyan1",
+  V(cooc_tax)$Primary_lifestyle == "moss_symbiont" ~ "lightcyan2",
+  V(cooc_tax)$Primary_lifestyle == "algal_parasite" ~ "#B4CDCD",
+  V(cooc_tax)$Primary_lifestyle == "protistan_parasite" ~ "lightcyan4",
+  V(cooc_tax)$Primary_lifestyle == "foliar_endophyte" ~ "#E0FFFF",
+  # for fungi without a primary lifestyle assigned
+  V(cooc_tax)$Primary_lifestyle == "unspecified" ~ "mediumorchid",
+  is.na(V(cooc_tax)$Primary_lifestyle)      ~ "mediumorchid3", # explicitly handle NAs
+  V(cooc_tax)$Primary_lifestyle == "bacteria" ~ "#2E8B57",
+  TRUE                              ~ "gray"  # catch-all for anything else
+)
+
+```
+
+```{r color nodes}
+
+V(cooc_tax)$color <- case_when(
+  V(cooc_tax)$Kingdom == "k_Fungi"   ~ "#C87A8A",
+  V(cooc_tax)$Primary_lifestyle == "arbuscular_mycorrhizal" ~ "#FFB6C1",
+  # give the "plant pathogens and saprotrophs" variations on dark goldenrod and dark orange
+  V(cooc_tax)$Primary_lifestyle == "unspecified_saprotroph" ~ "#B8860B",
+  V(cooc_tax)$Primary_lifestyle == "dung_saprotroph" ~ "#8B6508",
+  V(cooc_tax)$Primary_lifestyle == "soil_saprotroph" ~ "#CD950C",
+  V(cooc_tax)$Primary_lifestyle == "wood_saprotroph" ~ "#EEAD0E",
+  V(cooc_tax)$Primary_lifestyle == "litter_saprotroph" ~ "#FFB90F",
+  V(cooc_tax)$Primary_lifestyle == "plant_pathogen" ~ "#FF8C00",
+  V(cooc_tax)$Primary_lifestyle == "pollen_saprotroph" ~ "darkorange1",
+  V(cooc_tax)$Primary_lifestyle == "nectar/tap_saprotroph" ~ "darkorange2",
+  # give "all other lifestyles" variations on light blue
+  V(cooc_tax)$Primary_lifestyle == "mycoparasite" ~ "#ADD8E6",
+  V(cooc_tax)$Primary_lifestyle == "lichen_parasite" ~ "#BFEFFF",
+  V(cooc_tax)$Primary_lifestyle == "lichenized" ~ "#B2DFEE",
+  V(cooc_tax)$Primary_lifestyle == "animal_parasite" ~ "#9AC0CD",
+  V(cooc_tax)$Primary_lifestyle == "epiphyte" ~ "#68838B",
+  V(cooc_tax)$Primary_lifestyle == "root_endophyte" ~ "lightcyan1",
+  V(cooc_tax)$Primary_lifestyle == "moss_symbiont" ~ "lightcyan2",
+  V(cooc_tax)$Primary_lifestyle == "algal_parasite" ~ "#B4CDCD",
+  V(cooc_tax)$Primary_lifestyle == "protistan_parasite" ~ "lightcyan4",
+  V(cooc_tax)$Primary_lifestyle == "foliar_endophyte" ~ "#E0FFFF",
+  # for fungi without a primary lifestyle assigned
+  V(cooc_tax)$Primary_lifestyle == "unspecified" ~ "mediumorchid",
+  is.na(V(cooc_tax)$Primary_lifestyle)      ~ "mediumorchid3", # Explicitly handle NAs
+  V(cooc_tax)$Primary_lifestyle == "bacteria" ~ "#2E8B57",
+  TRUE                              ~ "gray"  # Catch-all for anything else
+)
+
+```
+
+```{r}
+plot(cooc_tax,
+     vertex.label = NA,
+     vertex.size = 4)
+```
+
+
+
 
