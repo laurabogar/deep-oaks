@@ -1,0 +1,47 @@
+---
+title: "bac-fun co-oc"
+author: "Anna Goodman"
+date: "2026-03-11"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(dplyr)
+library(igraph)
+```
+
+```{r}
+bac = read_csv("Results/bac_otu_genus_glom.csv")
+fun = read_csv("Results/fun_otu_genus_glom.csv")
+```
+
+```{r}
+both = fun %>% left_join(bac, by = "DO_ID") %>% # left join because fewer samples have fungal rna data than bacterial
+  select(-c(...1.x, barcodes.x, ...1.y, barcodes.y)) %>%
+  column_to_rownames(var = "DO_ID")
+
+# am I loosing primary lifestyle here?
+```
+
+
+```{r}
+# calculate correlation matrix
+cor_matrix = cor(both, method = "spearman")
+
+# Set a threshold (e.g., correlations > 0.6 are edges)
+cor_matrix[abs(cor_matrix) < 0.6] <- 0
+```
+
+
+```{r}
+net <- graph_from_data_frame(d = edge_list, directed = FALSE)
+
+# You can now color nodes based on Kingdom
+V(net)$kingdom <- ifelse(V(net)$name %in% taxa_names(ps_bacteria), "Bacteria", "Fungi")
+plot(net, vertex.color = as.factor(V(net)$kingdom))
+```
+

@@ -197,7 +197,6 @@ bac_otu_doid$DO_ID # worked!
 ```
 
 ```{r}
-
 fun_otu_doid <- fun_otu %>% 
   rownames_to_column(var = "barcodes") %>%
   left_join(better_barcode_key, by = "barcodes") %>%
