@@ -1,0 +1,246 @@
+---
+title: "tree-fun_bipartite"
+author: "Anna Goodman"
+date: "2026-03-11"
+output: html_document
+---
+---
+title: "bac-fun co-oc"
+author: "Anna Goodman"
+date: "2026-03-11"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(dplyr)
+library(igraph)
+library(phyloseq)
+```
+Read in otu tables
+```{r}
+bac = read_csv("Results/bac_otu_genus_glom.csv")
+fun = read_csv("Results/fun_otu_genus_glom.csv")
+
+# and taxon id key
+tid_key = read_csv("Results/tid_key.csv")
+```
+
+```{r}
+both = fun %>% left_join(bac, by = "DO_ID") %>% # left join because fewer samples have fungal rna data than bacterial
+  select(-c(...1.x, barcodes.x, ...1.y, barcodes.y)) 
+
+# am I loosing primary lifestyle here?
+#no, it was never in the otu tables
+```
+
+```{r}
+# change taxon names on both to tid "taxon ID"
+tids = tid_key$tid[match(colnames(both), tid_key$Genus)] # make sure tid_key is in the right order
+
+
+colnames(both) = ifelse(is.na(tids), colnames(both), tids) # handle cases where a name isn't in the lookup (keep original)
+
+head(colnames(both))
+```
+
+ok now let's filter for depth
+```{r}
+deep_suffixes = c("22.5-30", "30-37.5", "15-22.5") # omitting deepest core bc we don't have rna data for it in all trees
+pattern_string = paste(deep_suffixes, collapse = "|") # separate these options by the or operator |
+otu_deeper = both %>%
+  filter(str_ends(DO_ID, pattern_string))
+
+head(otu_deeper) # OTU table dataframe with only deep samples.
+unique(otu_deeper$DO_ID)
+```
+
+turn this big otu table into an edgelist
+```{r}
+otu_deeper_pivoted = otu_deeper %>%
+  pivot_longer(cols = -DO_ID) %>% # don't pivot the ID column 
+  filter(value !=0) %>% # keep only rows where the relative abundance is not 0
+  rename(c(ASV = name, relabund = value)) # name new columns
+
+head(otu_deeper_pivoted) #ok I think that worked. now I have 3 columns:
+# DO ID, asv's whole sequence, and the relative abundance. 
+
+# hold relative abudndances for each edge in the same order of the edgelist in a separate varialbe
+edge_relabunds = otu_deeper_pivoted$relabund
+
+# reformat as edgelist
+edgelist = otu_deeper_pivoted %>%
+  select(-relabund) %>%
+  as.matrix()
+
+igo = graph_from_edgelist(edgelist, directed = FALSE)
+igo
+```
+
+edge attributes
+```{r}
+igo_edges = igo %>%
+  set_edge_attr("relabund", value = edge_relabunds) # edge_relabunds is list I made before
+```
+
+
+vertex attributes
+
+first, tree health
+
+
+```{r}
+phylo = read.csv("../../TidyData/Metadata/Results/phyloseq_metadata_ITS_mip.csv")
+psm = read.csv("../../TidyData/Metadata/Results/per_sample_metadata_mip.csv") # per-sample metadata
+ea = read.csv("../../TidyData/Metadata/Results/extraction_and_amplification_metadata_mip.csv")
+```
+
+```{r}
+v_list = V(igo_edges) 
+length(v_list)
+
+v_df = data.frame(v_list)
+
+v_df_metadata = v_df %>%
+  rename(DO_ID = v_list) %>%
+  mutate(DO_ID = as.character(DO_ID)) %>%
+  left_join(psm, by = "DO_ID")
+
+tail(v_df_metadata) # I'm just seeing a lot of NAs with head and tail
+
+filter(v_df_metadata, !(is.na(v_df_metadata$Tree))) # 0 rows. didn't work. were there ever any tree verticies?
+View(v_df) # ohh the actual values are in the rownames. yikes
+```
+
+```{r}
+# fix rowname issue and try again
+v_df_cols = v_df %>%
+  rownames_to_column(var = "vertex")
+
+v_df_metadata = v_df_cols %>%
+  select(vertex) %>%
+  mutate(vertex = as.character(vertex)) %>%
+  left_join(psm, join_by( "vertex"=="DO_ID"))
+
+head(v_df_metadata) # yay that worked!
+```
+
+
+```{r add vertex attributes?}
+depth = v_df_metadata$sample_depth_cm
+treeID = v_df_metadata$Tree
+mortality = v_df_metadata$Tree_Health
+
+igo_ev_tree = igo_edges %>%
+  set_vertex_attr("depth", value = depth) %>%
+  set_vertex_attr("treeID", value = treeID) %>%
+  set_vertex_attr("mortality", value = mortality) 
+
+vertex_attr(igo_ev_tree) #worked
+```
+
+```{r color nodes by tree health}
+
+V(igo_ev_tree)$color <- case_when(
+  V(igo_ev_tree)$mortality == "dead"   ~ "red3",
+  V(igo_ev_tree)$mortality == "living" ~ "green4",
+  is.na(V(igo_ev_tree)$mortality)      ~ "gray", # Explicitly handle NAs
+  TRUE                              ~ "gray"  # Catch-all for anything else
+)
+
+```
+
+
+second, taxonomy and fungal primary lifestyles
+```{r}
+# make a dataframe with all the taxonomy
+
+bac_tax = read.csv("Results/bac_tax_genus_glom.csv")
+fun_tax = read.csv("Results/fun_tax_genus_glom.csv")
+
+bac_tax = bac_tax %>%
+  mutate(Primary_lifestyle = "bacteria") %>%
+  select(c(Kingdom, Phylum, Class, Order, Family, Genus, Primary_lifestyle, tid))
+
+fun_tax = fun_tax %>%
+  select(c(Kingdom, Phylum, Class, Order, Family, Genus, Primary_lifestyle, tid))
+
+
+all_tax = rbind(fun_tax, bac_tax)
+
+# make sure its order matches the vertex list
+at_order = all_tax[match(V(igo_edges)$name, all_tax$tid),] # this is broken -- doesn't work for things not assigned to genus. needed to have stable ASV id or node id :(
+```
+
+```{r}
+# add taxonomy as vertex attributes
+igo_ev = set_vertex_attr(igo_ev_tree, "Kingdom", value = at_order$Kingdom) 
+igo_ev = set_vertex_attr(igo_ev, "Phylum", value = at_order$Phylum) 
+igo_ev = set_vertex_attr(igo_ev, "Class", value = at_order$Class) 
+igo_ev = set_vertex_attr(igo_ev, "Order", value = at_order$Order) 
+igo_ev = set_vertex_attr(igo_ev, "Family", value = at_order$Family) 
+igo_ev = set_vertex_attr(igo_ev, "Primary_lifestyle", value = at_order$Primary_lifestyle) 
+```
+
+```{r}
+unique(V(igo_ev)$Kingdom)
+```
+
+# color nodes
+```{r}
+unique(V(igo_ev)$Primary_lifestyle)
+```
+
+```{r color nodes}
+
+V(igo_ev)$color <- case_when(
+  V(igo_ev)$Primary_lifestyle == "ectomycorrhizal"   ~ "#C87A8A",
+  V(igo_ev)$Primary_lifestyle == "arbuscular_mycorrhizal" ~ "#FFB6C1",
+  # give the "plant pathogens and saprotrophs" variations on dark goldenrod and dark orange
+  V(igo_ev)$Primary_lifestyle == "unspecified_saprotroph" ~ "#B8860B",
+  V(igo_ev)$Primary_lifestyle == "dung_saprotroph" ~ "#8B6508",
+  V(igo_ev)$Primary_lifestyle == "soil_saprotroph" ~ "#CD950C",
+  V(igo_ev)$Primary_lifestyle == "wood_saprotroph" ~ "#EEAD0E",
+  V(igo_ev)$Primary_lifestyle == "litter_saprotroph" ~ "#FFB90F",
+  V(igo_ev)$Primary_lifestyle == "plant_pathogen" ~ "#FF8C00",
+  V(igo_ev)$Primary_lifestyle == "pollen_saprotroph" ~ "darkorange1",
+  V(igo_ev)$Primary_lifestyle == "nectar/tap_saprotroph" ~ "darkorange2",
+  # give "all other lifestyles" variations on light blue
+  V(igo_ev)$Primary_lifestyle == "mycoparasite" ~ "#ADD8E6",
+  V(igo_ev)$Primary_lifestyle == "lichen_parasite" ~ "#BFEFFF",
+  V(igo_ev)$Primary_lifestyle == "lichenized" ~ "#B2DFEE",
+  V(igo_ev)$Primary_lifestyle == "animal_parasite" ~ "#9AC0CD",
+  V(igo_ev)$Primary_lifestyle == "epiphyte" ~ "#68838B",
+  V(igo_ev)$Primary_lifestyle == "root_endophyte" ~ "lightcyan1",
+  V(igo_ev)$Primary_lifestyle == "moss_symbiont" ~ "lightcyan2",
+  V(igo_ev)$Primary_lifestyle == "algal_parasite" ~ "#B4CDCD",
+  V(igo_ev)$Primary_lifestyle == "protistan_parasite" ~ "lightcyan4",
+  V(igo_ev)$Primary_lifestyle == "foliar_endophyte" ~ "#E0FFFF",
+  # for fungi without a primary lifestyle assigned
+  V(igo_ev)$Primary_lifestyle == "unspecified" ~ "mediumorchid",
+  V(igo_ev)$mortality == "dead"   ~ "red3",
+  V(igo_ev)$mortality == "living" ~ "green4",
+  TRUE                              ~ "gray"  # catch-all for anything else. should include all non-fungi (and unfortnately some fungi wiht NA in primary lifestyle, must fix later)
+)
+
+```
+
+```{r}
+V(igo_ev)$size <- case_when(
+  is.na(V(igo_ev)$mortality) ~ 4,
+  !is.na(V(igo_ev)$mortality) ~ 8)
+
+```
+
+
+```{r}
+plot(igo_ev,
+     vertex.label = NA)
+```
+
+
+
+

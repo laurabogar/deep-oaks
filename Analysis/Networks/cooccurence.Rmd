@@ -1,0 +1,122 @@
+---
+title: "Co-occurence"
+author: "Anna Goodman"
+date: "2026-03-05"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(phyloseq)
+library(tidyverse)
+```
+
+Load in phyloseq objects
+```{r}
+fun_rna = readRDS("../../TidyData/Phyloseq/Tidy_relativize_phyloseq_objects/Results/psITS_relative_RNA_mip.rds")
+bac_rna = readRDS("../../TidyData/Phyloseq/Tidy_relativize_phyloseq_objects/Results/ps16S_relative_RNA_mip.rds")
+```
+
+collapse fungi to genus
+```{r}
+# first see what it looked like before
+fun_tt = data.frame(tax_table(fun_rna))
+colnames(fun_tt)
+
+# do it in the tax table
+ps_fun_gen = tax_glom(fun_rna, taxrank = "Genus")
+fun_gen_tt = data.frame(tax_table(ps_fun_gen))
+colnames(fun_gen_tt)
+
+```
+
+```{r}
+# 1. Agglomerate by Genus
+ps_fun_gen <- tax_glom(fun_rna, taxrank = "Genus", NArm = FALSE)
+
+# 2. Extract the Tax Table as a data frame to make it easier to manipulate
+tax_df <- as.data.frame(tax_table(ps_fun_gen))
+
+# 3. Create a 'Unique Name' column 
+# This handles NAs by using the ASV ID, and ensures Genus names are unique
+tax_df$Unique_Node_Name <- ifelse(
+  is.na(tax_df$Genus) | tax_df$Genus == "", 
+  paste0("Unclass_", rownames(tax_df)), # Use ASV ID for unclassified
+  as.character(tax_df$Genus)
+)
+
+# 4. CRITICAL: Check for any duplicate Genus names that survived glomming
+# If two different families have a genus with the same name, this fixes it
+if(any(duplicated(tax_df$Unique_Node_Name))){
+  tax_df$Unique_Node_Name <- make.unique(tax_df$Unique_Node_Name)
+}
+
+# 5. Assign these unique strings back as the taxa names
+taxa_names(ps_fun_gen) <- tax_df$Unique_Node_Name
+
+# 6. Update the tax_table inside the object so metadata matches names
+tax_table(ps_fun_gen) <- as.matrix(tax_df)
+```
+
+
+
+
+collapse bacteria to genus
+
+```{r}
+# 1. Agglomerate by Genus
+ps_bac_gen <- tax_glom(fun_rna, taxrank = "Genus", NArm = FALSE)
+
+# 2. Extract the Tax Table as a data frame to make it easier to manipulate
+tax_df <- as.data.frame(tax_table(ps_bac_gen))
+
+# 3. Create a 'Unique Name' column 
+# This handles NAs by using the ASV ID, and ensures Genus names are unique
+tax_df$Unique_Node_Name <- ifelse(
+  is.na(tax_df$Genus) | tax_df$Genus == "", 
+  paste0("Unclass_", rownames(tax_df)), # Use ASV ID for unclassified
+  as.character(tax_df$Genus)
+)
+
+# 4. CRITICAL: Check for any duplicate Genus names that survived glomming
+# If two different families have a genus with the same name, this fixes it
+if(any(duplicated(tax_df$Unique_Node_Name))){
+  tax_df$Unique_Node_Name <- make.unique(tax_df$Unique_Node_Name)
+}
+
+# 5. Assign these unique strings back as the taxa names
+taxa_names(ps_bac_gen) <- tax_df$Unique_Node_Name
+
+# 6. Update the tax_table inside the object so metadata matches names
+tax_table(ps_bac_gen) <- as.matrix(tax_df)
+```
+
+
+
+make sample names describe soil cores, not barcode pairs
+```{r}
+eam = read_csv("../../TidyData/Metadata/Results/extraction_and_amplification_metadata_mip.csv") #read in extraction and amplification metadata, which links barcode pairs to soil core samples
+
+all_barcodes = eam %>%
+  select(c(FWD_barcode, REV_barcode, nucleic_acid, amplification, DO_ID)) # trim eam down to relevant info
+
+all_barcodes_DO_R1 = all_barcodes %>% 
+  mutate(barcodes = str_c("DO_", REV_barcode, "_", FWD_barcode, "_R1.fastq.gz"))
+head(all_barcodes_DO_R1)
+
+better_barcode_key =  all_barcodes_DO_R1 %>% 
+  select(barcodes, DO_ID)
+
+otu_ids <- rna_otu %>% 
+  rownames_to_column(var = "barcodes") %>%
+  left_join(better_barcode_key, by = "barcodes") %>%
+  relocate(DO_ID, .after = barcodes) # moves the ID column to the front instead of being after all the asv-specific columns
+
+head(colnames(otu_ids))
+otu_ids$DO_ID # yayyyy it worked!
+```
+
+

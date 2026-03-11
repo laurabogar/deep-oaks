@@ -1,9 +1,10 @@
 ---
-title: "bac-fun co-oc"
+title: "bac-fun bipartite"
 author: "Anna Goodman"
 date: "2026-03-11"
 output: html_document
 ---
+
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
@@ -57,9 +58,11 @@ edgelist = cor_matrix %>%
   as.data.frame() %>%
   rownames_to_column(var = "taxonA") %>%
   pivot_longer(-taxonA, names_to = "taxonB", values_to = "correlation") %>%
+  filter(correlation > 0) %>% # only show correlations that exist
   filter(taxonA != taxonB) %>% # remove self pairs
   filter(taxonA < taxonB) %>%   # filter to remove redundant pairs
-  filter(correlation > 0.1) # only show strong correlations
+  filter(!(startsWith(taxonA, "f") & startsWith(taxonB, "f"))) # filter out fungi-fungi pairs
+
   
 
 head(edgelist)
@@ -68,7 +71,7 @@ nrow(edgelist) # check number of edges
 # did we loose our bacteria here?
 any(startsWith(edgelist$taxonA, "b"))
 any(startsWith(edgelist$taxonB, "b"))
-# yes
+# actually we lost everything
 ```
 
 

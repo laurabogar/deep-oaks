@@ -59,8 +59,6 @@ otu_ids$DO_ID # yayyyy it worked!
 ```
 
 
-
-
 ok now let's filter for depth
 ```{r}
 deep_suffixes = c("22.5-30", "30-37.5", "15-22.5") # omitting deepest core bc we don't have rna data for it in all trees
