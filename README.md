@@ -12,10 +12,11 @@ Lab work and pre-processing that occured before this project:
 - Fungal "lifestyle" assignments attached to ASVs where possible using the publically availible FungalTraits database.
 
 ### which files am I looking at?
-Everything I did for ATM298 (and changed in this branch of the repo) is in Analysis/Networks. The network graph I presented in class is Analysis/Networks/Results/tree-fun-bip_default-layout.png
+- Everything I did for ATM298 (and changed in this branch of the repo) is in Analysis/Networks. Files outside of this folder should not have been modified in this branch.
+- The network graph I presented in class is Analysis/Networks/Results/tree-fun-bip_default-layout.png
 
 ### Network project workflow:
-I spent a lot of time learning igraph and manipulating my phyloseq objects to make them compatible -- great practice for me, and some good remedial education in data structures beyond simple csvs. All "sandbox_.Rmd" files are messy notebooks that I was practicing this in as I worked thorugh the igraph course in DataCamp.
+I spent a lot of time learning igraph and manipulating my phyloseq objects to make them compatible -- great practice for me, and some good remedial education in data structures beyond simple csvs. All "sandbox_.Rmd" files are messy notebooks that I was practicing in as I worked thorugh the igraph course in DataCamp. Other .Rmds are networks I tried building but did not wrap up during WQ 2026!
 
 Here's the work directly upstream of my final graph:
 
@@ -30,4 +31,8 @@ Here's the work directly upstream of my final graph:
    d) Make a bipartite network graph linking trees to fungal taxa!
 
 ### Final product I presented in ATM298: 
-tree-fun-bip_default-layout.png
+[tree-fun-bip_default-layout.png
+](https://github.com/laurabogar/deep-oaks/blob/ATM298_networks/Analysis/Networks/Results/tree-fun-bip_default-layout.png)
+
+### To Heather:
+Thank you for being a great TA! Trying to learn new data skills with little-no CS foundation can be super intimidating, but you did great work making it feel more accessible:) Sorry I didn't edit my folder structure or scripts for readability this time, but know that I **am** learning a lot from you about best coding practice. This is the first thorough readme I've written, and the first project I ever used github _during_ (as opposed to just uploading a big 'ol folder at the end like I did with the main branch here.)
