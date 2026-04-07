@@ -1,0 +1,151 @@
+---
+title: "Supplementary Figure 3"
+author: "Anna Goodman"
+date: "2024-12-18"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# load packages
+```{r}
+library(tidyverse)
+library(ggpubr)
+```
+
+# load data
+```{r}
+# load in the metadata with PLFA data for all 36 samples
+metadata36 <- read.csv("../../TidyData/Metadata/Results/per_sample_metadata_mip.csv")
+```
+
+# make depth discrete, not continuous
+```{r}
+discrete.depth = mutate(metadata36, core_bottom_depth_cm = as.character(core_bottom_depth_cm)) # make a dataframe in which depth is a discrete variable
+discrete.depth$core_bottom_depth_cm <- factor(discrete.depth$core_bottom_depth_cm, levels=c("7.5", "15", "22.5", "30", "37.5", "45")) # put the levels of depth in order
+```
+
+# define terms for standardization across more than one plot panel
+```{r}
+fontSizeControl = theme(text = element_text(size = 7)) # code to add to each ggplot to set font size
+ymax = 1650 # max ng lipid/g soil to show in bac and fun plot panels
+
+makeMargins = theme(plot.margin = margin(t = 27, r = 5.5, b = 5.5, l = 5.5)) # widen left margin of each plot so the panel labels can fit in top left. 5.5 is default pt size for margins in ggplot.
+
+boxplot_thinlines = geom_boxplot(linewidth = 0.2)
+```
+
+
+# make boxplot of total living microbial biomass
+```{r}
+mic = ggplot(discrete.depth, aes(x = core_bottom_depth_cm, y = PLFA_Total_Living_Microbial_Biomass_ng_g, fill = Tree_Health)) +
+  boxplot_thinlines +
+  labs(x = "Core bottom depth (cm)", y = "Total microbial biomass (ng PLFA/g soil)") +
+  theme_minimal()  + scale_fill_manual(name = "Tree mortality", values = c("darkblue", "deeppink")) + # colorblind-friendly colors 
+  fontSizeControl +
+  makeMargins
+
+```
+
+# make boxplot of total living bacterial biomass
+```{r}
+bac = ggplot(discrete.depth, aes(x = core_bottom_depth_cm, y = PLFA_Total_Bacteria_ng_g, fill = Tree_Health)) +
+  boxplot_thinlines +
+  labs(x = "Core bottom depth (cm)", y = "Total bacterial biomass (ng PLFA/g soil)") +
+  theme_minimal() + scale_fill_manual(name = "Tree mortality", values = c("darkblue", "deeppink"))+ # colorblind-friendly colors
+  fontSizeControl +
+  ylim(0, ymax) + # set y-axis equal to other PLFA y axes
+  makeMargins
+```
+
+# make boxplot of total living fungal biomass
+```{r}
+fun = ggplot(discrete.depth, aes(x = core_bottom_depth_cm, y = PLFA_Total_Fungi_ng_g, fill = Tree_Health)) +
+  boxplot_thinlines +
+  labs(x = "Core bottom depth (cm)", y = "Total fungal biomass (ng PLFA/g soil)") +
+  theme_minimal()  + scale_fill_manual(name = "Tree mortality", values = c("darkblue", "deeppink"))+ # colorblind-friendly colors
+  fontSizeControl +
+  ylim(0, ymax) + # set y-axis equal to other PLFA y axes
+  makeMargins
+```
+
+# make boxplot of fungi:bacteria ratio
+```{r}
+discrete.depth = discrete.depth %>% 
+  mutate(PLFA_fungi_to_bacteria_ratio = (PLFA_Total_Fungi_ng_g/PLFA_Total_Bacteria_ng_g)) # add column to discrete.depth metadata dataframe with computed fungi:bacteria ratio, based on PLFA biomass of fungi and bacteria
+
+fb_ratio = ggplot(discrete.depth, aes(x = core_bottom_depth_cm, y = PLFA_fungi_to_bacteria_ratio, fill = Tree_Health)) +
+  boxplot_thinlines +
+  labs(x = "Core bottom depth (cm)", y = "Fungi:bacteria ratio") +
+  theme_minimal() + scale_fill_manual(name = "Tree mortality", values = c("darkblue", "deeppink"))+ # colorblind-friendly colors
+  fontSizeControl +
+  makeMargins
+```
+
+# combine boxplots as pannels of a single figure - one row
+```{r}
+supFig3_1row = ggpubr::ggarrange(
+  mic, bac, fun, fb_ratio, # list of boxplots to be panels
+  labels = c("A", "B", "C", "D"), # labels for each panel
+  font.label = list(size = 10, color = "black", face = "bold", family = NULL),
+  widths = c(4,4,4,4),
+  heights = c(3),
+  label.x = -0.01,
+  common.legend = TRUE, # common legend for all panels
+  legend = "top", # legend displayed above all panels
+  align = "h", # align panels horizontally and vertically
+  nrow = 1, ncol = 4 # arrange panels in one long row
+)
+supFig3_1row
+```
+
+
+### export:
+```{r}
+# set size and resolution parameters
+
+# requirements: 1000 ppi (pixels per inch), 140 mm wide
+# 1 inch = 0.0393701 mm, 1 mm = 25.4 inches
+
+ppi = 1000
+
+w_mm = 190
+hw_ratio = 1/3 # arbitrary
+
+h_mm = w_mm*hw_ratio
+w_i = w_mm/25.4
+h_i = h_mm/25.4
+```
+
+```{r}
+# create the jpg figure file in this results folder and in the reports folder
+
+jpeg("Results/SupFig3_1row.jpg", width = w_i * ppi, height = h_i * ppi, res = ppi)
+
+supFig3_1row
+dev.off()
+```
+
+```{r}
+# create A FUN ONLY jpg figure file in this results folder and in the reports folder
+
+jpeg("Results/SupFig3_fun_only.jpg", width = (0.65*w_i) * ppi, height = h_i * ppi, res = ppi)
+
+
+fun
+dev.off()
+```
+
+```{r}
+# create the png figure file in this results folder and in the reports folder
+
+png("Results/SupFig3.png", width = w_i * ppi, height = h_i * ppi, res = ppi)
+png("../../Reports/SupFig3.png", width = w_i * ppi, height = h_i * ppi, res = ppi)
+
+
+supFig3
+dev.off()
+```

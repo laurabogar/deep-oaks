@@ -1,0 +1,153 @@
+---
+title: "tree ID exploration"
+author: "Anna Goodman"
+date: "2024-11-24"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+```
+
+```{r}
+# nucleic acid-based relative abundance data load-in
+
+#   relative abundance data:
+Primary_lifestyle_by_sample <- read.csv("C:/Users/goodm/OneDrive/Documents/Bogar Lab/Deep Oaks (DO)/Data/Primary_lifestyle_by_sample.csv")
+
+#  ^ that file only identifies samples by their primer pairs and doesn't have the metadata we need (tree health, depth, tree ID). loading in phyloseq metadata for tree health and depth
+
+#   phyloseq metadata:
+phyloseq_metadata_ITS <- read.csv("C:/Users/goodm/OneDrive/Documents/Bogar Lab/Deep Oaks (DO)/Data/phyloseq_metadata_ITS.csv")
+
+
+# add DO_ID, tree health, depth, and nucleic acid to Primary lifestyle by sample
+#   just taking the info we need from phyloseq_metadata_ITS
+phyloseq_metadata_ITS = select(phyloseq_metadata_ITS, c(phyloseq_name, DO_ID, core_bottom_depth_cm, Tree_Health, nucleic_acid))
+#   renaming the column which contains the primer pair ID in Primary_lifestyle_by_sample to match the same in phyloseq_metadata_ITS ("phyloseq_name")
+Primary_lifestyle_by_sample = rename(Primary_lifestyle_by_sample, phyloseq_name = Primary_lifestyle)
+
+#   join by phyloseq_name
+lifestyle_with_IDs = full_join(phyloseq_metadata_ITS, Primary_lifestyle_by_sample, by = "phyloseq_name")
+
+#REMOVE DNA
+lifestyle_with_IDs = filter(lifestyle_with_IDs, nucleic_acid == "RNA")
+
+# remove controls
+lifestyle_with_IDs = filter(lifestyle_with_IDs, (is.na(core_bottom_depth_cm) == FALSE))
+
+# break up the DO_ID so we have access to Tree as a variable
+lifestyle_with_IDs <- lifestyle_with_IDs %>%
+  separate(DO_ID, into = c("DO", "Tree", "depth"), sep = "_")
+```
+
+# Make supplementary figure 7
+```{r}
+supFig7 = ggplot(lifestyle_with_IDs, aes(x = Tree, y = 100*ectomycorrhizal, fill = Tree_Health)) +
+  geom_boxplot() +
+  labs(x = "Tree ID", y = "Relative abundance of ectomycorrhizal fungi (%)") +
+  theme_minimal() + scale_fill_discrete(name = "Tree mortality")
+supFig7
+```
+
+```{r}
+  ggsave(plot = supFig7, filename = ("~/Bogar Lab/Deep Oaks (DO)/Figures_NovSubmission/sup_fig_7_treeID_ecmrelabund.pdf"), device = "pdf", height = 6, width = 9, units = "in")
+
+```
+
+```{r}
+# make another version of supplementary figure 7 with additional features: paneling by tree health, shaped points representing different depths 
+#I didn't end up using this 
+
+discrete.depth = mutate(lifestyle_with_IDs, core_bottom_depth_cm = as.character(core_bottom_depth_cm))
+discrete.depth$core_bottom_depth_cm <- factor(discrete.depth$core_bottom_depth_cm, levels=c("7.5", "15", "22.5", "30", "37.5", "45"))
+
+# broken at the moment
+supFig7 = ggplot(discrete.depth, aes(x = Tree, y = 100*ectomycorrhizal, fill = Tree_Health)) +
+  geom_boxplot() +
+  facet_wrap(~Tree_Health) + 
+  labs(x = "tree ID", y = "% EcMF of soil fungal community") + 
+  geom_point(data = discrete.depth, aes(x = Tree, y = 100*ectomycorrhizal, shape = core_bottom_depth_cm), show.legend = TRUE) +
+  geom_jitter(width = 0.2, height = 0.2) +
+  theme_minimal()
+
+supFig7
+```
+
+```{r}
+# another version of sup fig 7 that just has the data from below 20cm
+just_deep = filter(lifestyle_with_IDs, lifestyle_with_IDs$core_bottom_depth >20 )
+ggplot(just_deep, aes(x = Tree, y = 100*ectomycorrhizal, fill = Tree_Health)) +
+  geom_boxplot() + geom_point() +
+  facet_wrap(~Tree_Health) + # Group the boxes by treatment B
+  labs(x = "tree ID", y = "% EcMF of soil fungal community") +
+  theme_minimal()
+```
+
+
+# generate tree-specific averages of ecm relative abundance in live trees
+
+```{r}
+t3 = filter(lifestyle_with_IDs, lifestyle_with_IDs$Tree == "T03")
+t4 = filter(lifestyle_with_IDs, lifestyle_with_IDs$Tree == "T04")
+t6 = filter(lifestyle_with_IDs, lifestyle_with_IDs$Tree == "T06")
+
+t3 = filter(t3, !(is.na(t3$ectomycorrhizal)))
+t4 = filter(t4, !(is.na(t4$ectomycorrhizal)))
+
+
+t3avg = mean(t3$ectomycorrhizal)
+t4avg = mean(t4$ectomycorrhizal)
+t6avg = mean(t6$ectomycorrhizal)
+
+t3avg
+t4avg
+t6avg
+```
+
+# visualize ecm-associated biomass by tree
+```{r}
+# just the biomass of ecm assoicated bacteria
+metadata_with_ECMasssociated <- read.csv("C:/Users/goodm/Downloads/metadata_with_ECMasssociated.csv")
+ggplot(metadata_with_ECMasssociated, aes(x = Tree, y = ECM_associated_16S_ng_g, fill = Tree_Health)) +
+  geom_boxplot() +
+  facet_wrap(~Tree_Health) + # Group the boxes by treatment B
+  labs(x = "Tree ID", y = "mass of bacteria which were ecm associated ng/gsoil") +
+  theme_minimal()
+```
+```{r}
+# biomass of ecm assoicated bacteria and ecm together
+metadata_with_ECMasssociated <- read.csv("C:/Users/goodm/Downloads/metadata_with_ECMasssociated.csv")
+ggplot(metadata_with_ECMasssociated, aes(x = Tree, y = ECM_associated_biomass, fill = Tree_Health)) +
+  geom_boxplot() +
+  facet_wrap(~Tree_Health) + # Group the boxes by tree health
+  labs(x = "tree", y = "ecm biomass + ecm-associated bacterial biomass ng/g soil") +
+  theme_minimal()
+
+t3 = filter(metadata_with_ECMasssociated, metadata_with_ECMasssociated$Tree == "T03")
+t4 = filter(metadata_with_ECMasssociated, metadata_with_ECMasssociated$Tree == "T04")
+t6 = filter(metadata_with_ECMasssociated, metadata_with_ECMasssociated$Tree == "T06")
+
+t3 = filter(t3, !(is.na(t3$ectomycorrhizal)))
+t4 = filter(t4, !(is.na(t4$ectomycorrhizal)))
+
+
+t3avg = mean(t3$ectomycorrhizal)
+t4avg = mean(t4$ectomycorrhizal)
+t6avg = mean(t6$ectomycorrhizal)
+```
+# visualize C:N ratio by tree
+```{r}
+metadata_with_ECMasssociated <- read.csv("C:/Users/goodm/Downloads/metadata_with_ECMasssociated.csv")
+ggplot(metadata_with_ECMasssociated, aes(x = Tree, y = C_per_N_Ratio, fill = Tree_Health)) +
+  geom_boxplot() +
+  facet_wrap(~Tree_Health) + # Group the boxes by treatment B
+  labs(x = "tree", y = "C:N") +
+  theme_minimal()
+```

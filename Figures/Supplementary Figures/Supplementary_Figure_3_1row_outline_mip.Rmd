@@ -1,0 +1,221 @@
+---
+title: "Supplementary Figure 3"
+author: "Anna Goodman"
+date: "2024-12-18"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# load packages
+```{r}
+library(tidyverse)
+library(ggpubr)
+library(cowplot)
+library(ggplot2)
+```
+
+# load data
+```{r}
+# load in the metadata with PLFA data for all 36 samples
+metadata36 <- read.csv("../../TidyData/Metadata/Results/per_sample_metadata_mip.csv")
+```
+
+# refactor depth variable
+```{r}
+discrete.depth = metadata36 # make a copy dataframe of the original metadata
+
+discrete.depth$sample_depth_cm <- factor(discrete.depth$sample_depth_cm, levels=c("0-7.5", "7.5-15", "15-22.5", "22.5-30", "30-37.5", "37.5-45")) # values in this column are characters so plots won't automatically arrange data in numerical order; set them in order of increasing depth (descending from surface)
+
+discrete.depth = mutate(discrete.depth, core_bottom_depth_cm = as.character(core_bottom_depth_cm)) # make a dataframe in which depth is a discrete variable
+discrete.depth$core_bottom_depth_cm <- factor(discrete.depth$core_bottom_depth_cm, levels=c("7.5", "15", "22.5", "30", "37.5", "45")) # put the levels of depth in order
+```
+
+# define universal plotting layers/modifiers so I can edit all panels at once
+```{r}
+xvar = discrete.depth$core_bottom_depth_cm
+  
+boxplot = geom_boxplot(alpha = 0.075) # add boxplot layer, make fill mostly transparent
+
+points = geom_jitter(size = 0.5, position = position_jitterdodge(jitter.width = 0.4, dodge.width = 0.75)) # add raw datapoint layer. Dodge so living and dead points are separated and overlay their boxplots. Jitter optional.
+
+fillcolor = scale_fill_manual(name = "Tree mortality", values = c("darkblue", "deeppink")) # color the semi-transparent box fill, name legend
+
+dotlinecolor = scale_color_manual(name = "Tree mortality", values = c("darkblue", "deeppink")) # color the points and lines, name legend consistently
+
+background = theme_minimal() # visually simplify background
+
+xaxislabel = xlab("") # set x-axis label
+
+theme = theme(text = element_text(size = 7), # set font size
+              plot.margin = margin(t = 13, r = 5.5, b = 5.5, l = 5.5), # set margin widths: widen left margin of each plot so the panel labels can fit in top left. 5.5 is default pt size for margins in ggplot.
+              axis.title.x = element_blank(), # no x-axis, if doing shared x-axis later
+              legend.position = "bottom"
+)
+
+ymax = ylim(0, 2050) # for bac and fun panels only: set common y-axis limit to enable side-by-side comparison 
+
+add_leg_box = theme( # optional: add to whichever panel the legend grob gets grabbed from so the final legend has a box around it 
+    legend.background = element_rect(
+      color = "black",
+      linewidth = 0.5,
+      linetype = "solid"
+    )
+  )
+
+legend = theme(legend.position = "none")
+```
+
+# make microbial biomass over depth panel
+```{r}
+mic = mic = ggplot(discrete.depth, aes(xvar, PLFA_Total_Living_Microbial_Biomass_ng_g, fill = Tree_Health, color = Tree_Health)) +
+  boxplot +
+  points +
+  fillcolor +
+  dotlinecolor +
+  background +
+  xaxislabel +
+  ylab("Total microbial biomass (ng PLFA/g soil)") +
+  theme
+
+mic
+```
+
+# make bacterial biomass over depth panel
+```{r}
+bac = ggplot(discrete.depth, aes(x = xvar, y = PLFA_Total_Bacteria_ng_g, fill = Tree_Health, color = Tree_Health)) +  
+  boxplot +
+  points +
+  fillcolor +
+  dotlinecolor +
+  background +
+  xaxislabel +
+  ylab("Total bacterial biomass (ng PLFA/g soil)") +
+  font +
+  theme +
+  ymax
+
+bac
+```
+
+# make fungal biomass over depth panel
+```{r}
+fun = ggplot(discrete.depth, aes(x = xvar, y = PLFA_Total_Fungi_ng_g, fill = Tree_Health, color = Tree_Health)) +  
+  boxplot +
+  points +
+  fillcolor +
+  dotlinecolor +
+  background +
+  xaxislabel +
+  ylab("Total fungal biomass (ng PLFA/g soil)") +
+  theme + 
+  ymax
+
+fun
+```
+
+# make fungi:bacteria biomass ratio over depth panel
+```{r}
+discrete.depth = discrete.depth %>% 
+  mutate(PLFA_fungi_to_bacteria_ratio = (PLFA_Total_Fungi_ng_g/PLFA_Total_Bacteria_ng_g)) # add column to discrete.depth metadata dataframe with computed fungi:bacteria ratio, based on PLFA biomass of fungi and bacteria
+
+fb_ratio = ggplot(discrete.depth, aes(x = xvar, y = PLFA_fungi_to_bacteria_ratio, fill = Tree_Health, color = Tree_Health)) +
+  boxplot +
+  points +
+  fillcolor +
+  dotlinecolor +
+  background +
+  xaxislabel +
+  ylab("Fungi:bacteria biomass ratio") +
+  theme
+
+fb_ratio
+```
+
+```{r}
+supFig3_1row = ggpubr::ggarrange(
+  mic, bac, fun, fb_ratio, # list of boxplots to be panels
+  labels = c("A", "B", "C", "D"), # labels for each panel
+  font.label = list(size = 10, color = "black", face = "bold", family = NULL),
+  widths = c(4,4,4,4),
+  heights = c(3),
+  #hjust = -1,
+  label.x = 0.25,
+  label.y = 1.02,
+  common.legend = FALSE, # common legend for all panels
+  legend = "none", # legend displayed above all panels
+  align = "h", # align panels horizontally
+  nrow = 1, ncol = 4 # arrange panels in one long row
+)
+supFig3_1row
+```
+
+#make null/blank panel
+```{r}
+blank = ggplot(discrete.depth, aes(x = , y = )) + theme_minimal()
+blank
+```
+
+```{r}
+supFig3_1row_sharedxlab <- annotate_figure(supFig3_1row,
+                bottom = text_grob("Core bottom depth (cm)", color = "black", size = 7))
+supFig3_1row_sharedxlab
+```
+
+```{r}
+supFig3_1row_space = ggpubr::ggarrange(
+  supFig3_1row_sharedxlab, blank, # list of boxplots to be panels
+  widths = c(1,1),
+  heights = c(8,1),
+  common.legend = FALSE, # common legend for all panels
+  legend = "none", # legend displayed above all panels
+  align = "h", # align panels horizontally
+  nrow = 2, ncol = 1 # arrange panels in one long row
+)
+supFig3_1row_space
+```
+
+
+
+```{r}
+leg = ggpubr::get_legend(mic + 
+                  labs(fill = "Tree mortality", color = "Tree mortality") +
+                  guides(fill = guide_legend(), color = guide_legend()))
+
+final = ggdraw(supFig3_1row_space) + draw_grob(leg, hjust = 0, vjust = 0.45)
+final
+```
+
+
+
+
+
+
+### export:
+```{r}
+# set size and resolution parameters
+
+# requirements: 1000 ppi (pixels per inch), 140 mm wide
+# 1 inch = 0.0393701 mm, 1 mm = 25.4 inches
+
+ppi = 1000
+
+w_mm = 190
+hw_ratio = 1/3 # arbitrary
+
+h_mm = w_mm*hw_ratio
+w_i = w_mm/25.4
+h_i = h_mm/25.4
+```
+
+```{r}
+# create the jpg figure file in this results folder and in the reports folder
+
+jpeg("Results/SupFig3_1row_outline.jpg", width = w_i * ppi, height = h_i * ppi, res = ppi)
+
+final
+dev.off()
+```
