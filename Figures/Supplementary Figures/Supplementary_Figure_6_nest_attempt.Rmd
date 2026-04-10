@@ -15,7 +15,7 @@ library("tidyverse")
 
 #load required data:
 ```{r}
-ps16S_positive = read_rds("../../Analysis/Microbial Communities/DeSeq2 Indicator Species Analysis/Results/ps16S_ASVs_RNA_positive.rds")
+ps16S_positive = read_rds("../../Analysis/Microbial Communities/Fungal-Bacterial Interactions/DeSeq2 Indicator Species Analysis/Results/ps16S_ASVs_RNA_positive_mip.rds")
 ```
 
 # 
@@ -50,7 +50,7 @@ sample_labels <- df %>%
 
 ```{r}
 text_size = 7
-supfig6 = ggplot(df, aes(x = Sample, y = Abundance, fill = Phylum)) +
+supfig5 = ggplot(df, aes(x = Sample, y = Abundance, fill = Phylum)) +
   geom_bar(stat = "identity", position = "stack") +
   facet_wrap(~ Tree_Health, scales = "free_x") +
   scale_x_discrete(labels = sample_labels) +
@@ -74,6 +74,12 @@ supfig6 = ggplot(df, aes(x = Sample, y = Abundance, fill = Phylum)) +
 
 ```
 
+# add caption
+```{r}
+supFig4_caption <- annotate_figure(supFig4_sharedxlab,
+                top = text_grob("Supplementary Figure 5. Box and whisker plots showing the distribution of imputed biomass (A) and relative \n abundance (B) of ectomycorrhizal fungi across discrete soil depths. Imputed biomass was calculated as: \n the proportion of the fungal community (as measured by 16S rRNA metabarcoding) assigned to the ectomycorrhizal \n primary lifestyle * total living fungal biomass as measured by PLFA. Relative abundance \n was calculated as the proportion of the fungal community assigned to the ectomycorrhizal primary lifestyle * 100. \n Box boundaries are the first and third quartiles. Individual data points are overlayed; sample size \n is variable between boxes due to complications with RNA extraction and amplification for metabarcoding.", color = "black", size = 7))
+supFig4_caption
+```
 
 ### export:
 ```{r}
@@ -94,7 +100,7 @@ h_i = h_mm/25.4
 jpeg("Results/sup_fig_6_ecm_promoted_bac_relabund.jpg", width = w_i * ppi, height = h_i * ppi, res = ppi)
 
 
-supfig6
+supfig5
 dev.off()
 ```
 

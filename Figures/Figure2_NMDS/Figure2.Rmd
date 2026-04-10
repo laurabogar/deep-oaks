@@ -1,0 +1,103 @@
+---
+title: "Figure2"
+output: html_document
+---
+
+```{r}
+library(tidyverse)
+library(phyloseq)
+library(vegan)
+```
+
+
+#load pre-filtered, relativized, DNA-only phyloseq objects:
+```{r}
+# 16S ASVs
+ps16S_relative <- read_rds("../../TidyData/Phyloseq/Tidy_relativize_phyloseq_objects/Results/ps16S_relative_mip.rds")
+
+# ITS ASVs
+psITS_relative <- read_rds("../../TidyData/Phyloseq/Tidy_relativize_phyloseq_objects/Results/psITS_relative_mip.rds")
+
+# 16S traits
+ps16S_traits_relative <- read_rds("../../TidyData/Phyloseq/Tidy_relativize_phyloseq_objects/Results/ps16S_traits_relative_mip.rds")
+
+# ITS traits
+psITS_traits_relative <- read_rds("../../TidyData/Phyloseq/Tidy_relativize_phyloseq_objects/Results/psITS_traits_relative_mip.rds")
+```
+
+```{r}
+pss = list(ps16S_relative <- read_rds("../../TidyData/Phyloseq/Tidy_relativize_phyloseq_objects/Results/ps16S_relative_mip.rds"),
+           psITS_relative <- read_rds("../../TidyData/Phyloseq/Tidy_relativize_phyloseq_objects/Results/psITS_relative_mip.rds"),
+           ps16S_traits_relative <- read_rds("../../TidyData/Phyloseq/Tidy_relativize_phyloseq_objects/Results/ps16S_traits_relative_mip.rds"),
+           psITS_traits_relative <- read_rds("../../TidyData/Phyloseq/Tidy_relativize_phyloseq_objects/Results/psITS_traits_relative_mip.rds"))
+```
+
+```{r}
+# check for samples which do not appear in BOTH DNA and RNA datasets
+lapply(pss, function(ps) {
+  ps_DNA <- subset_samples(ps, nucleic_acid == "DNA")
+  ps_RNA <- subset_samples(ps, nucleic_acid == "RNA")
+  
+  sample_names(ps_DNA) <- sample_data(ps_DNA)$DO_ID
+
+  sample_names(ps_RNA) <- sample_data(ps_RNA)$DO_ID
+
+  #make a list of samples which are present in DNA dataset but not RNA:
+  dna_only = setdiff(sample_names(ps_DNA), sample_names(ps_RNA))
+
+  #make a list of samples which are present in RNA dataset but not DNA:
+  rna_only = setdiff(sample_names(ps_RNA), sample_names(ps_DNA))
+
+  #Remove these samples, leaving paired RNA/DNA only:
+  ps_DNA <- subset_samples(ps_DNA, !(DO_ID  %in% rna_only))
+  
+  ps_RNA <- subset_samples(ps_RNA, !(DO_ID  %in% dna_only))
+
+
+  ##re-name, re-combine:
+  sample_data(ps_DNA)$DO_Name <- str_c(sample_data(ps_DNA)$DO_ID, sample_data(ps_DNA)$nucleic_acid, sep = "_")
+  sample_names(ps_DNA) <- sample_data(ps_DNA)$DO_Name
+  
+  sample_data(ps_RNA)$DO_Name <- str_c(sample_data(ps_RNA)$DO_ID, sample_data(ps_RNA)$nucleic_acid, sep = "_")
+  sample_names(ps_RNA) <- sample_data(ps_RNA)$DO_Name
+  
+  ps <- merge_phyloseq(ps_DNA, ps_RNA)
+  ps <- prune_taxa(taxa_sums(ps) > 0, ps)
+  
+  
+})
+```
+
+##re-calculate distance matrix:
+```{r}
+ps16S_relative_df <- as(sample_data(ps16S_relative),"data.frame")
+ps16S_relative_dist_matrix <- phyloseq::distance(ps16S_relative, "bray")
+```
+
+
+##calculate NMDS only with paired samples
+```{r}
+NMDS_ps16S_relative <- ordinate(ps16S_relative,
+                          method = "NMDS", #Ordinate with NMDS
+                          distance = "bray", #Use Bray-Curtis distances
+                          trymax = 100, #Iterate 100 times
+                          k = 2) #ordinate in 2 axes
+```
+
+
+# prepare dataframes to plot
+```{r}
+# Create a data frame for plotting
+NMDS_ps16S_relative_points <- data.frame(NMDS_ps16S_relative$points)
+NMDS_ps16S_relative_points <- rownames_to_column(NMDS_ps16S_relative_points, var = "DO_Name")
+NMDS_ps16S_relative_points <- left_join(NMDS_ps16S_relative_points, ps16S_relative_df, by = "DO_Name")
+
+# Prepare data for pairwise lines
+nucleic_acid_distance <- NMDS_ps16S_relative_points %>%
+  group_by(DO_ID) %>%
+  summarise(MDS1_DNA = MDS1[1], MDS2_DNA = MDS2[1], 
+            MDS1_RNA = MDS1[2], MDS2_RNA = MDS2[2]) %>%
+  ungroup()
+
+nucleic_acid_distance_ps16S_ASVs <- left_join(nucleic_acid_distance, sample_metadata, by = "DO_ID")
+```

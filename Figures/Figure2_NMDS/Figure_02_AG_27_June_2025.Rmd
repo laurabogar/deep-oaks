@@ -1,0 +1,638 @@
+---
+title: "Figure_02_AG_11_April_2025"
+author: "Anna Goodman"
+date: "2025-04-11"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+
+```
+
+
+------------------------------------------------------------------------------
+#FIGURE 2
+------------------------------------------------------------------------------
+# set plot characteristics
+```{r}
+#define colors
+factor_levels <- unique(ordination_scores$Tree)
+# colors <- c("cyan", "blue", "azure4", "red", "hotpink", "darkorange")
+# colors from hcl.colors("Batlow", n = 8), omitting two colors in the center of the scale
+
+colors <- c("#201158", "#005260", "#007C46", "#D99C4C", "#FFAAB7", "#FFCEF9")
+
+names(colors) <- factor_levels
+
+#define point size ranges
+commonrange = c(4, 1.5)
+outlinerange = c(4.5, 2)
+
+#define line weights
+commonweight = 0.5
+
+#define font size
+fontsize = 7
+```
+
+
+#DNA to RNA NMDSs
+
+#16S ASVs
+
+#Check which samples are present in DNA dataset but not RNA:
+```{r}
+ps16S_DNA <- subset_samples(ps16S_relative, nucleic_acid == "DNA")
+ps16S_RNA <- subset_samples(ps16S_relative, nucleic_acid == "RNA")
+
+sample_names(ps16S_DNA) <- sample_data(ps16S_DNA)$DO_ID
+
+sample_names(ps16S_RNA) <- sample_data(ps16S_RNA)$DO_ID
+
+setdiff(sample_names(ps16S_DNA), sample_names(ps16S_RNA))
+```
+
+#Are any samples present in RNA but not DNA?
+```{r}
+setdiff(sample_names(ps16S_RNA), sample_names(ps16S_DNA))
+```
+
+#Remove these samples, leaving paired RNA/DNA only:
+```{r}
+ps16S_DNA
+ps16S_DNA <- subset_samples(ps16S_DNA, !(DO_ID  %in% c("DO_T05_15-22.5", "DO_T05_30-37.5", "DO_T06_7.5-15", "DO_T06_37.5-45")))
+ps16S_DNA
+
+ps16S_RNA
+ps16S_RNA <- subset_samples(ps16S_RNA, DO_ID  != "DO_T02_37.5-45")
+ps16S_RNA
+```
+
+#re-name, re-combine:
+```{r}
+sample_data(ps16S_DNA)$DO_Name <- str_c(sample_data(ps16S_DNA)$DO_ID, sample_data(ps16S_DNA)$nucleic_acid, sep = "_")
+sample_names(ps16S_DNA) <- sample_data(ps16S_DNA)$DO_Name
+
+sample_data(ps16S_RNA)$DO_Name <- str_c(sample_data(ps16S_RNA)$DO_ID, sample_data(ps16S_RNA)$nucleic_acid, sep = "_")
+sample_names(ps16S_RNA) <- sample_data(ps16S_RNA)$DO_Name
+
+ps16S_relative <- merge_phyloseq(ps16S_DNA, ps16S_RNA)
+ps16S_relative
+ps16S_relative <- prune_taxa(taxa_sums(ps16S_relative) > 0, ps16S_relative)
+ps16S_relative
+```
+
+#re-calculate distance matrix:
+```{r}
+ps16S_relative_df <- as(sample_data(ps16S_relative),"data.frame")
+ps16S_relative_dist_matrix <- phyloseq::distance(ps16S_relative, "bray")
+```
+
+
+#calculate NMDS only with paired samples
+```{r}
+NMDS_ps16S_relative <- ordinate(ps16S_relative,
+                          method = "NMDS", #Ordinate with NMDS
+                          distance = "bray", #Use Bray-Curtis distances
+                          trymax = 100, #Iterate 100 times
+                          k = 2) #ordinate in 2 axes
+```
+
+```{r}
+# organize data for plotting
+# Create a data frame for plotting
+NMDS_ps16S_relative_points <- data.frame(NMDS_ps16S_relative$points)
+NMDS_ps16S_relative_points <- rownames_to_column(NMDS_ps16S_relative_points, var = "DO_Name")
+NMDS_ps16S_relative_points <- left_join(NMDS_ps16S_relative_points, ps16S_relative_df, by = "DO_Name")
+
+# Prepare data for pairwise lines
+nucleic_acid_distance <- NMDS_ps16S_relative_points %>%
+  group_by(DO_ID) %>%
+  summarise(MDS1_DNA = MDS1[1], MDS2_DNA = MDS2[1], 
+            MDS1_RNA = MDS1[2], MDS2_RNA = MDS2[2]) %>%
+  ungroup()
+
+nucleic_acid_distance <- left_join(nucleic_acid_distance, sample_metadata, by = "DO_ID")
+
+#define colors
+#factor_levels <- unique(ordination_scores$Tree)
+# colors from hcl.colors("Batlow", n = 8), omitting two colors in the center of the scale
+
+#names(colors) <- factor_levels
+
+for (x in (1:length(NMDS_ps16S_relative_points$Tree))) {
+  newString = paste(NMDS_ps16S_relative_points$Tree[x], "-", NMDS_ps16S_relative_points$Tree_Health[x])
+  NMDS_ps16S_relative_points$Tree[x] = newString
+}
+
+NMDS_ps16S_relative_points$Tree <- factor(NMDS_ps16S_relative_points$Tree, levels=c('T02 - dead', 'T05 - dead', 'T07 - dead', 'T03 - living', 'T04 - living', 'T06 - living'))
+
+#define colors
+factor_levels <- unique(NMDS_ps16S_relative_points$Tree)
+names(colors) <- factor(factor_levels, levels=c('T02 - dead', 'T05 - dead', 'T07 - dead', 'T03 - living', 'T04 - living', 'T06 - living'))
+```
+
+#plot the correct way:
+
+```{r}
+
+factor_levels <- unique(ordination_scores$Tree)
+# colors <- c("cyan", "blue", "azure4", "red", "hotpink", "darkorange")
+# colors from hcl.colors("Batlow", n = 8), omitting two colors in the center of the scale
+
+colors <- c("#201158", "#005260", "#007C46", "#D99C4C", "#FFAAB7", "#FFCEF9")
+
+names(colors) <- factor_levels
+
+#plot
+
+ps16S_ASV_DNAvsRNA_plot <- ggplot(NMDS_ps16S_relative_points, aes(x = MDS1,
+                 y = MDS2,
+                 size = core_bottom_depth_cm,
+                 shape = nucleic_acid)) +
+  
+   # geom_point(color = "gray", size = 4.5) +
+
+  
+  geom_point(color = "black", stroke = 0.5, fill = NMDS_ps16S_relative_points$Tree) +
+  
+  scale_size_continuous(range = commonrange) +
+  scale_shape_manual(values = c(21, 24)) +
+
+ scale_fill_manual(values = colors) +  # Custom colors for each factor level
+  # scale_color_manual(values = colors) +
+  
+  geom_segment(inherit.aes = FALSE, data = nucleic_acid_distance,
+               aes(x = MDS1_DNA,
+                   y = MDS2_DNA,
+                   xend = MDS1_RNA,
+                   yend = MDS2_RNA), 
+               color = "black",
+               size = commonweight) +
+  
+  labs(title = "16S ASVs",
+       x = "",
+       y = "") +
+  theme_classic(base_size = fontsize)
+
+ps16S_ASV_DNAvsRNA_plot
+```
+
+
+#ITS ASVs
+
+#Check which samples are present in DNA dataset but not RNA:
+```{r}
+psITS_DNA <- subset_samples(psITS_relative, nucleic_acid == "DNA")
+psITS_RNA <- subset_samples(psITS_relative, nucleic_acid == "RNA")
+
+sample_names(psITS_DNA) <- sample_data(psITS_DNA)$DO_ID
+
+sample_names(psITS_RNA) <- sample_data(psITS_RNA)$DO_ID
+
+setdiff(sample_names(psITS_DNA), sample_names(psITS_RNA))
+```
+
+#Are any samples present in RNA but not DNA?
+```{r}
+setdiff(sample_names(psITS_RNA), sample_names(psITS_DNA))
+```
+
+#Remove these samples, leaving paired RNA/DNA only:
+```{r}
+psITS_DNA
+psITS_DNA <- subset_samples(psITS_DNA, !(DO_ID  %in% c("DO_T03_37.5-45",
+                                                       "DO_T04_30-37.5",
+                                                       "DO_T02_7.5-15",
+                                                       "DO_T04_15-22.5",
+                                                       "DO_T03_30-37.5",
+                                                       "DO_T05_22.5-30",
+                                                       "DO_T05_30-37.5",
+                                                       "DO_T06_7.5-15",
+                                                       "DO_T06_37.5-45")))
+psITS_DNA
+
+#psITS_RNA
+#psITS_RNA <- subset_samples(psITS_RNA, DO_ID  != "")
+psITS_RNA
+```
+
+#re-name, re-combine:
+```{r}
+sample_data(psITS_DNA)$DO_Name <- str_c(sample_data(psITS_DNA)$DO_ID, sample_data(psITS_DNA)$nucleic_acid, sep = "_")
+sample_names(psITS_DNA) <- sample_data(psITS_DNA)$DO_Name
+
+sample_data(psITS_RNA)$DO_Name <- str_c(sample_data(psITS_RNA)$DO_ID, sample_data(psITS_RNA)$nucleic_acid, sep = "_")
+sample_names(psITS_RNA) <- sample_data(psITS_RNA)$DO_Name
+
+psITS_relative <- merge_phyloseq(psITS_DNA, psITS_RNA)
+psITS_relative
+psITS_relative <- prune_taxa(taxa_sums(psITS_relative) > 0, psITS_relative)
+psITS_relative
+```
+
+#re-calculate distance matrix:
+```{r}
+psITS_relative_df <- as(sample_data(psITS_relative),"data.frame")
+psITS_relative_dist_matrix <- phyloseq::distance(psITS_relative, "bray")
+```
+
+
+#calculate NMDS only with paired samples
+```{r}
+NMDS_psITS_relative <- ordinate(psITS_relative,
+                          method = "NMDS", #Ordinate with NMDS
+                          distance = "bray", #Use Bray-Curtis distances
+                          trymax = 100, #Iterate 100 times
+                          k = 2) #ordinate in 2 axes
+```
+
+#plot the correct way:
+## pre- plot data prep
+```{r} 
+# Create a data frame for plotting
+NMDS_psITS_relative_points <- data.frame(NMDS_psITS_relative$points)
+NMDS_psITS_relative_points <- rownames_to_column(NMDS_psITS_relative_points, var = "DO_Name")
+NMDS_psITS_relative_points <- left_join(NMDS_psITS_relative_points, psITS_relative_df, by = "DO_Name")
+
+# Prepare data for pairwise lines
+nucleic_acid_distance <- NMDS_psITS_relative_points %>%
+  group_by(DO_ID) %>%
+  summarise(MDS1_DNA = MDS1[1], MDS2_DNA = MDS2[1], 
+            MDS1_RNA = MDS1[2], MDS2_RNA = MDS2[2]) %>%
+  ungroup()
+
+nucleic_acid_distance <- left_join(nucleic_acid_distance, sample_metadata, by = "DO_ID")
+
+```
+
+```{r}
+# Create a data frame for plotting
+NMDS_psITS_relative_points <- data.frame(NMDS_psITS_relative$points)
+NMDS_psITS_relative_points <- rownames_to_column(NMDS_psITS_relative_points, var = "DO_Name")
+NMDS_psITS_relative_points <- left_join(NMDS_psITS_relative_points, psITS_relative_df, by = "DO_Name")
+
+# Prepare data for pairwise lines
+nucleic_acid_distance <- NMDS_psITS_relative_points %>%
+  group_by(DO_ID) %>%
+  summarise(MDS1_DNA = MDS1[1], MDS2_DNA = MDS2[1], 
+            MDS1_RNA = MDS1[2], MDS2_RNA = MDS2[2]) %>%
+  ungroup()
+
+nucleic_acid_distance <- left_join(nucleic_acid_distance, sample_metadata, by = "DO_ID")
+
+#define colors
+factor_levels <- unique(ordination_scores$Tree)
+#colors <- c("cyan", "blue", "azure4", "red", "hotpink", "darkorange")
+names(colors) <- factor_levels
+
+#plot
+
+psITS_ASV_DNAvsRNA_plot <- ggplot(NMDS_psITS_relative_points) +
+  
+      geom_point(data = NMDS_psITS_relative_points,
+             aes(x = MDS1,
+                 y = MDS2,
+                 size = core_bottom_depth_cm,
+                 shape = nucleic_acid,
+                 color = "black")) +
+    scale_size_continuous(range = outlinerange) +
+  
+  geom_point(data = NMDS_psITS_relative_points,
+             aes(x = MDS1,
+                 y = MDS2,
+                 size = core_bottom_depth_cm,
+                 shape = nucleic_acid,
+                 color = Tree)) +
+  scale_size_continuous(range = commonrange) +
+  
+
+
+  
+  scale_color_manual(values = colors) +  # Custom colors for each tree
+  
+  geom_segment(data = nucleic_acid_distance,
+               aes(x = MDS1_DNA,
+                   y = MDS2_DNA,
+                   xend = MDS1_RNA,
+                   yend = MDS2_RNA), 
+               color = "black",
+               size = commonweight) +
+  
+  labs(title = "ITS ASVs",
+       x = "",
+       y = "") +
+  theme_classic(base_size = fontsize)
+
+psITS_ASV_DNAvsRNA_plot
+```
+
+
+
+#ITS traits
+
+#Check which samples are present in DNA dataset but not RNA:
+```{r}
+psITS_traits_DNA <- subset_samples(psITS_traits_relative, nucleic_acid == "DNA")
+psITS_traits_RNA <- subset_samples(psITS_traits_relative, nucleic_acid == "RNA")
+
+sample_names(psITS_traits_DNA) <- sample_data(psITS_traits_DNA)$DO_ID
+
+sample_names(psITS_traits_RNA) <- sample_data(psITS_traits_RNA)$DO_ID
+
+setdiff(sample_names(psITS_traits_DNA), sample_names(psITS_traits_RNA))
+```
+
+#Are any samples present in RNA but not DNA?
+```{r}
+setdiff(sample_names(psITS_traits_RNA), sample_names(psITS_traits_DNA))
+```
+
+#Remove these samples, leaving paired RNA/DNA only:
+```{r}
+psITS_traits_DNA
+psITS_traits_DNA <- subset_samples(psITS_traits_DNA, !(DO_ID  %in% c("DO_T03_37.5-45",
+                                                       "DO_T04_30-37.5",
+                                                       "DO_T02_7.5-15",
+                                                       "DO_T04_15-22.5",
+                                                       "DO_T03_30-37.5",
+                                                       "DO_T05_22.5-30",
+                                                       "DO_T05_30-37.5",
+                                                       "DO_T06_7.5-15",
+                                                       "DO_T06_37.5-45")))
+psITS_traits_DNA
+
+#psITS_traits_RNA
+#psITS_traits_RNA <- subset_samples(psITS_traits_RNA, DO_ID  != "")
+psITS_traits_RNA
+```
+
+#re-name, re-combine:
+```{r}
+sample_data(psITS_traits_DNA)$DO_Name <- str_c(sample_data(psITS_traits_DNA)$DO_ID, sample_data(psITS_traits_DNA)$nucleic_acid, sep = "_")
+sample_names(psITS_traits_DNA) <- sample_data(psITS_traits_DNA)$DO_Name
+
+sample_data(psITS_traits_RNA)$DO_Name <- str_c(sample_data(psITS_traits_RNA)$DO_ID, sample_data(psITS_traits_RNA)$nucleic_acid, sep = "_")
+sample_names(psITS_traits_RNA) <- sample_data(psITS_traits_RNA)$DO_Name
+
+psITS_traits_relative <- merge_phyloseq(psITS_traits_DNA, psITS_traits_RNA)
+psITS_traits_relative
+psITS_traits_relative <- prune_taxa(taxa_sums(psITS_traits_relative) > 0, psITS_traits_relative)
+psITS_traits_relative
+```
+
+#re-calculate distance matrix:
+```{r}
+psITS_traits_relative_df <- as(sample_data(psITS_traits_relative),"data.frame")
+psITS_traits_relative_dist_matrix <- phyloseq::distance(psITS_traits_relative, "bray")
+```
+
+
+#calculate NMDS only with paired samples
+```{r}
+NMDS_psITS_traits_relative <- ordinate(psITS_traits_relative,
+                          method = "NMDS", #Ordinate with NMDS
+                          distance = "bray", #Use Bray-Curtis distances
+                          trymax = 100, #Iterate 100 times
+                          k = 2) #ordinate in 2 axes
+```
+
+```{r}
+# Create a data frame for plotting
+NMDS_psITS_traits_relative_points <- data.frame(NMDS_psITS_traits_relative$points)
+NMDS_psITS_traits_relative_points <- rownames_to_column(NMDS_psITS_traits_relative_points, var = "DO_Name")
+NMDS_psITS_traits_relative_points <- left_join(NMDS_psITS_traits_relative_points, psITS_traits_relative_df, by = "DO_Name")
+
+# Prepare data for pairwise lines
+nucleic_acid_distance <- NMDS_psITS_traits_relative_points %>%
+  group_by(DO_ID) %>%
+  summarise(MDS1_DNA = MDS1[1], MDS2_DNA = MDS2[1], 
+            MDS1_RNA = MDS1[2], MDS2_RNA = MDS2[2]) %>%
+  ungroup()
+
+nucleic_acid_distance <- left_join(nucleic_acid_distance, sample_metadata, by = "DO_ID")
+
+# add tree health to tree identity strings
+
+for (x in (1:length(NMDS_psITS_traits_relative_points$Tree))) {
+  newString = paste(NMDS_psITS_traits_relative_points$Tree[x], "-", NMDS_psITS_traits_relative_points$Tree_Health[x])
+  NMDS_psITS_traits_relative_points$Tree[x] = newString
+}
+
+print(NMDS_psITS_traits_relative_points$Tree)
+
+NMDS_psITS_traits_relative_points$Tree <- factor(NMDS_psITS_traits_relative_points$Tree, levels=c('T02 - dead', 'T05 - dead', 'T07 - dead', 'T03 - living', 'T04 - living', 'T06 - living'))
+
+#define colors
+factor_levels <- unique(NMDS_psITS_traits_relative_points$Tree)
+#colors <- c("cyan3", "blue", "azure4", "red", "hotpink", "darkorange")
+names(colors) <- factor_levels
+```
+
+
+#plot the correct way:
+```{r}
+
+
+#plot
+
+psITS_traits_ASV_DNAvsRNA_plot <- ggplot(NMDS_psITS_traits_relative_points) +
+  
+  geom_point(data = NMDS_psITS_traits_relative_points,
+             aes(x = MDS1,
+                 y = MDS2,
+                 size = core_bottom_depth_cm,
+                 shape = nucleic_acid,
+                 color = Tree)) +
+  
+  scale_color_manual(values = colors) +  # Custom colors for each factor level
+  
+  geom_segment(data = nucleic_acid_distance,
+               aes(x = MDS1_DNA,
+                   y = MDS2_DNA,
+                   xend = MDS1_RNA,
+                   yend = MDS2_RNA), 
+               color = "black",
+               size = commonweight) +
+  
+  scale_size_continuous(range = commonrange) +
+  
+   labs(title = "ITS traits",
+       x = "",
+       y = "",
+       size = "Core bottom depth (cm)",
+                 shape = "Nucleic Acid",
+                 color = "Tree identity") +
+  theme_classic(base_size = fontsize)
+
+psITS_traits_ASV_DNAvsRNA_plot
+```
+
+
+#16S traits
+
+#Check which samples are present in DNA dataset but not RNA:
+```{r}
+ps16S_traits_DNA <- subset_samples(ps16S_traits_relative, nucleic_acid == "DNA")
+ps16S_traits_RNA <- subset_samples(ps16S_traits_relative, nucleic_acid == "RNA")
+
+sample_names(ps16S_traits_DNA) <- sample_data(ps16S_traits_DNA)$DO_ID
+
+sample_names(ps16S_traits_RNA) <- sample_data(ps16S_traits_RNA)$DO_ID
+
+setdiff(sample_names(ps16S_traits_DNA), sample_names(ps16S_traits_RNA))
+```
+
+#Are any samples present in RNA but not DNA?
+```{r}
+setdiff(sample_names(ps16S_traits_RNA), sample_names(ps16S_traits_DNA))
+```
+
+#Remove these samples, leaving paired RNA/DNA only:
+```{r}
+ps16S_traits_DNA
+ps16S_traits_DNA <- subset_samples(ps16S_traits_DNA, !(DO_ID  %in% c("DO_T05_15-22.5",
+                                                                     "DO_T05_30-37.5",
+                                                                     "DO_T06_7.5-15",
+                                                                     "DO_T06_37.5-45")))
+ps16S_traits_DNA
+
+ps16S_traits_RNA
+ps16S_traits_RNA <- subset_samples(ps16S_traits_RNA, DO_ID  != "DO_T02_37.5-45")
+ps16S_traits_RNA
+```
+
+#re-name, re-combine:
+```{r}
+sample_data(ps16S_traits_DNA)$DO_Name <- str_c(sample_data(ps16S_traits_DNA)$DO_ID, sample_data(ps16S_traits_DNA)$nucleic_acid, sep = "_")
+sample_names(ps16S_traits_DNA) <- sample_data(ps16S_traits_DNA)$DO_Name
+
+sample_data(ps16S_traits_RNA)$DO_Name <- str_c(sample_data(ps16S_traits_RNA)$DO_ID, sample_data(ps16S_traits_RNA)$nucleic_acid, sep = "_")
+sample_names(ps16S_traits_RNA) <- sample_data(ps16S_traits_RNA)$DO_Name
+
+ps16S_traits_relative <- merge_phyloseq(ps16S_traits_DNA, ps16S_traits_RNA)
+ps16S_traits_relative
+ps16S_traits_relative <- prune_taxa(taxa_sums(ps16S_traits_relative) > 0, ps16S_traits_relative)
+ps16S_traits_relative
+```
+
+#re-calculate distance matrix:
+```{r}
+ps16S_traits_relative_df <- as(sample_data(ps16S_traits_relative),"data.frame")
+ps16S_traits_relative_dist_matrix <- phyloseq::distance(ps16S_traits_relative, "bray")
+```
+
+
+#calculate NMDS only with paired samples
+```{r}
+NMDS_ps16S_traits_relative <- ordinate(ps16S_traits_relative,
+                          method = "NMDS", #Ordinate with NMDS
+                          distance = "bray", #Use Bray-Curtis distances
+                          trymax = 100, #Iterate 100 times
+                          k = 2) #ordinate in 2 axes
+```
+
+
+#plot the correct way:
+```{r}
+# Create a data frame for plotting
+NMDS_ps16S_traits_relative_points <- data.frame(NMDS_ps16S_traits_relative$points)
+NMDS_ps16S_traits_relative_points <- rownames_to_column(NMDS_ps16S_traits_relative_points, var = "DO_Name")
+NMDS_ps16S_traits_relative_points <- left_join(NMDS_ps16S_traits_relative_points, ps16S_traits_relative_df, by = "DO_Name")
+
+# Prepare data for pairwise lines
+nucleic_acid_distance <- NMDS_ps16S_traits_relative_points %>%
+  group_by(DO_ID) %>%
+  summarise(MDS1_DNA = MDS1[1], MDS2_DNA = MDS2[1], 
+            MDS1_RNA = MDS1[2], MDS2_RNA = MDS2[2]) %>%
+  ungroup()
+
+nucleic_acid_distance <- left_join(nucleic_acid_distance, sample_metadata, by = "DO_ID")
+
+#define colors
+factor_levels <- unique(ordination_scores$Tree)
+# colors <- c("cyan", "blue", "azure4", "red", "hotpink", "darkorange")
+names(colors) <- factor_levels
+
+#plot
+
+ps16S_traits_ASV_DNAvsRNA_plot <- ggplot(NMDS_ps16S_traits_relative_points) +
+  
+  geom_point(data = NMDS_ps16S_traits_relative_points,
+             aes(x = MDS1,
+                 y = MDS2,
+                 size = core_bottom_depth_cm,
+                 shape = nucleic_acid,
+                 color = Tree)) +
+  
+  scale_fill_manual(values = colors) +  # Custom colors for each factor level
+  
+  geom_segment(data = nucleic_acid_distance,
+               aes(x = MDS1_DNA,
+                   y = MDS2_DNA,
+                   xend = MDS1_RNA,
+                   yend = MDS2_RNA), 
+               color = "black",
+               size = commonweight) +
+  
+  scale_size_continuous(range = commonrange) +
+  
+  labs(title = "16S traits",
+       x = "",
+       y = "") +
+  theme_classic(base_size = fontsize)
+
+ps16S_traits_ASV_DNAvsRNA_plot
+```
+
+
+
+```{r}
+
+legend = get_legend(psITS_traits_ASV_DNAvsRNA_plot)
+ASV_16S = ps16S_ASV_DNAvsRNA_plot + theme(legend.position = "none") + xlab("")
+ASV_ITS = psITS_ASV_DNAvsRNA_plot + theme(legend.position = "none")
+trait_16S = ps16S_traits_ASV_DNAvsRNA_plot + theme(legend.position = "none") 
+trait_ITS = psITS_traits_ASV_DNAvsRNA_plot + theme(legend.position = "none") 
+
+all_no_legend = plot_grid(ASV_16S, ASV_ITS, trait_16S, trait_ITS,
+                 nrow = 2, 
+                 ncol = 2, align = 'vh',
+                 rel_heights = c())
+                 #labels = c("16S ASVs", "ITS ASVs", "16S traits", "ITS traits"))
+
+labeled = all_no_legend +
+  draw_text("NMDS2", x = 0.02, y = 0.45, hjust = "left", angle=90, size = fontsize) +
+  draw_text("NMDS1", x = 0.55, y = 0.02, size = fontsize) # x value is 1/2 of the 2/3 of the horizontal space which is the panels
+
+fig2 = plot_grid(labeled, legend, align = "h", rel_widths = c(3, 1))
+
+#create common x and y labels
+
+#fig2 = fig2_leg + draw_text("NMDS2", x = 0.025, y = 0., hjust = "left", angle=90) + draw_text("NMDS1", x = 0.4, y = 0.025, vjust = "bottom") # x value is 1/2 of the 2/3 of the horizontal space which is the panels
+
+```
+
+```{r}
+fig2
+```
+
+```{r}
+# print the figure
+
+hw_ratio = 6/8
+w_mm = 140
+h_mm = w_mm*hw_ratio
+
+
+ppi = 1000
+
+tiff("C:/Users/goodm/OneDrive/Documents/Bogar Lab/Deep Oaks (DO)/SBB Submission/Figure2.tiff", width = w_mm, height = h_mm, units = "mm", res = ppi)
+fig2
+dev.off()
+```
+
