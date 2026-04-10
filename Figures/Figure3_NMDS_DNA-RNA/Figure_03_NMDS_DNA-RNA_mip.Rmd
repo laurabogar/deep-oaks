@@ -1,0 +1,340 @@
+---
+title: 'Figure 3: DNA vs. RNA NMDS'
+author: "Anna Goodman"
+date: "2025-04-29"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# load required packages
+```{r}
+library(tidyverse)
+```
+
+
+------------------------------------------------------------------------------
+#Figure 3
+------------------------------------------------------------------------------
+#load pre-filtered, relativized phyloseq objects:
+```{r}
+# 16S ASVs
+ps16S_relative <- read_rds("../../TidyData/Phyloseq/Tidy_relativize_phyloseq_objects/Results/ps16S_relative_mip.rds")
+
+# ITS ASVs
+psITS_relative <- read_rds("../../TidyData/Phyloseq/Tidy_relativize_phyloseq_objects/Results/psITS_relative_mip.rds")
+
+# 16S traits
+ps16S_traits_relative <- read_rds("../../TidyData/Phyloseq/Tidy_relativize_phyloseq_objects/Results/ps16S_traits_relative_mip.rds")
+
+# ITS traits
+psITS_traits_relative <- read_rds("../../TidyData/Phyloseq/Tidy_relativize_phyloseq_objects/Results/psITS_traits_relative_mip.rds")
+```
+
+# load metadata
+```{r}
+metadata = read.csv("../../TidyData/Metadata/Results/per_sample_metadata_mip.csv")
+```
+
+
+# set universal plot characteristics
+```{r}
+#define colors
+
+tree_labels <- c('T02 - dead', 'T05 - dead', 'T07 - dead', 'T03 - living', 'T04 - living', 'T06 - living')
+
+colors <- c("#FFCEF9", "#FFAAB7", "#D99C4C", "#007C46", "#005260", "#201158") # colors from hcl.colors("Batlow", n = 8), omitting two colors in the center of the scale
+
+names(colors) <- tree_labels
+
+shapes <- c(21, 24)
+names(shapes) <- c("DNA", "RNA") 
+
+#define point size ranges
+commonrange = c(4, 1.5)
+
+#define line weights
+commonweight = 0.5
+
+#define font size
+fontsize = 7
+```
+
+# define functions:
+
+## filter phyloseq objects -- this figure shows pairwise comaparisons between
+                              # RNA-derived microbial community composition data
+                              # and DNA-derived microbial community composition
+                              # data gathered from the same soil cores.
+                              # Because some extractions or library preps failed,
+                              # we need to filter out data from soil cores for 
+                              # which we don't have BOTH DNA- and RNA-based data.
+```{r}
+filter_ps_for_nucleic_acid_comparison = function (ps_relative) {
+
+# Extract sample_data and convert to data.frame
+sd <- as(sample_data(ps_relative), "data.frame")
+
+# Filter out NA values
+sd_clean <- sd %>%
+  filter(!is.na(DO_ID), !is.na(nucleic_acid))
+
+# Filter out all samples for which we don't have BOTH RNA- and DNA-based data
+#   group the rows of sample data (currently referring to a 
+#         single extraction->library prep sample) by the soil core sample they
+#         originate from (aka DO_ID)
+sd_grouped_by_soil_core <- sd_clean %>%
+  # Group rows by DO_ID — each group contains all samples sharing the same DO_ID
+  group_by(DO_ID) %>%
+  
+  # Summarize the group to calculate:
+  summarize(
+    has_DNA = any(nucleic_acid == "DNA"),   # TRUE if there's at least one DNA sample in the group
+    has_RNA = any(nucleic_acid == "RNA"),   # TRUE if there's at least one RNA sample in the group
+    total = n()                             # Total number of samples for this DO_ID
+  ) %>%
+  
+  # Filter to keep only groups that:
+  # - Have at least one DNA sample
+  # - Have at least one RNA sample
+  filter(has_DNA, has_RNA)
+
+
+# Keep only samples from DO_IDs that passed filter
+paired_samples <- sd_clean %>%
+  filter(DO_ID %in% sd_grouped_by_soil_core$DO_ID)
+
+
+# Subset phyloseq object
+ps_relative_comparison <- prune_samples(rownames(paired_samples), ps_relative)
+ps_relative_comparison <- prune_taxa(taxa_sums(ps_relative_comparison) > 0, ps_relative_comparison)
+
+return(ps_relative_comparison)
+
+}
+
+```
+
+
+## make NMDS ordinations
+```{r}
+
+nmds_for_nucleic_acid_comparison = function (ps_for_comparison) {
+
+  NMDS <- ordinate(ps_for_comparison,
+                          method = "NMDS", #Ordinate with NMDS
+                          distance = "bray", #Use Bray-Curtis distances
+                          trymax = 100, #Iterate 100 times
+                          k = 2) #ordinate in 2 axes
+return(NMDS)
+  
+}
+```
+
+## make a single panel 
+```{r}
+makepanel_fig3 = function (panel_name, ps_for_comparison, nmds){
+  
+  # convert sample_data from the phyloseq object into a dataframe
+  ps_sampledata <- as(sample_data(ps_for_comparison),"data.frame")
+  ps_sampledata <- rownames_to_column(ps_sampledata, var = "barcode_pair") # make the rownames into a column so we can join with the nmds ordination points later
+
+  # add tree health information to the tree identity string, so tree health is visible in the legend
+  ps_sampledata$Tree <- paste(ps_sampledata$Tree, "-", ps_sampledata$Tree_Health)
+  ps_sampledata$Tree <- factor(ps_sampledata$Tree, levels=c('T02 - dead', 'T05 - dead', 'T07 - dead', 'T03 - living', 'T04 - living', 'T06 - living'))
+  
+  df_points <- data.frame(nmds$points)
+  df_points <- rownames_to_column(df_points, var = "barcode_pair")
+  df_points <- left_join(df_points, ps_sampledata, by = "barcode_pair")
+  
+  df_points$Tree <- factor(df_points$Tree, levels=c('T02 - dead', 'T05 - dead', 'T07 - dead', 'T03 - living', 'T04 - living', 'T06 - living'))
+  df_points$nucleic_acid <- factor(df_points$nucleic_acid, levels=c('DNA', 'RNA'))
+
+  # Prepare data for pairwise lines
+  nucleic_acid_distance <- df_points %>%
+    group_by(DO_ID) %>%
+    summarise(MDS1_DNA = MDS1[1], MDS2_DNA = MDS2[1], 
+              MDS1_RNA = MDS1[2], MDS2_RNA = MDS2[2]) %>%
+    ungroup()
+  
+  dist_frame <- left_join(nucleic_acid_distance, ps_sampledata, by = "DO_ID")
+  
+  panel = ggplot(df_points) +
+          geom_point(data = df_points, color = "black",
+                aes(x = MDS1,
+                y = MDS2,
+                size = core_bottom_depth_cm,
+                shape = nucleic_acid,
+                fill = Tree,
+                stroke = 0.5)) +
+
+          scale_fill_manual(values = colors) +   
+          scale_shape_manual(values = shapes) +
+    
+          geom_segment(data = nucleic_acid_distance,
+               aes(x = MDS1_DNA,
+                   y = MDS2_DNA,
+                   xend = MDS1_RNA,
+                   yend = MDS2_RNA), 
+               color = "black",
+               linewidth = commonweight) +
+           scale_size_continuous(range = commonrange) +
+           labs(title = panel_name,
+           x = "",
+           y = "") +
+           theme_classic(base_size = fontsize) +
+    theme(legend.position = "none") 
+  
+panel <- ggplotGrob(panel)
+panel$layout$clip[panel$layout$name == "panel"] <- "off"
+
+panel = ggdraw(panel)  
+
+return(panel)
+}
+```
+
+
+# execute functions!
+## filter phyloseq objects for RNA AND DNA samples
+```{r}
+ps16S_comparison = filter_ps_for_nucleic_acid_comparison(ps16S_relative)
+psITS_comparison = filter_ps_for_nucleic_acid_comparison(psITS_relative)
+ps16S_traits_comparison = filter_ps_for_nucleic_acid_comparison(ps16S_traits_relative)
+psITS_traits_comparison = filter_ps_for_nucleic_acid_comparison(psITS_traits_relative)
+
+```
+## ordinate NMDSs
+```{r}
+nmds_16S = nmds_for_nucleic_acid_comparison(ps16S_comparison)
+nmds_ITS = nmds_for_nucleic_acid_comparison(psITS_comparison)
+nmds_16S_traits = nmds_for_nucleic_acid_comparison(ps16S_traits_comparison)
+nmds_ITS_traits = nmds_for_nucleic_acid_comparison(psITS_traits_comparison)
+```
+## make each panel of the plot
+```{r}
+ASV_16S = makepanel_fig3("16S ASVs", ps16S_comparison, nmds_16S)
+
+ASV_ITS = makepanel_fig3("ITS ASVs", psITS_comparison, nmds_ITS)
+
+trait_16S = makepanel_fig3("16S traits", ps16S_traits_comparison, nmds_16S_traits)
+
+trait_ITS = makepanel_fig3("ITS traits", psITS_traits_comparison, nmds_ITS_traits)
+```
+
+# make a panel outside the function just so we can extract the legend from it as a grob
+```{r}
+
+  # convert sample_data from the phyloseq object into a dataframe
+  ps_sampledata <- as(sample_data(ps16S_comparison),"data.frame")
+  # make the rownames into a column so we can join with the nmds ordination points later
+  ps_sampledata <- rownames_to_column(ps_sampledata, var = "barcode_pair")
+
+      # add tree health information to the tree identity string, so tree health is visible in the legend
+  ps_sampledata$Tree <- paste(ps_sampledata$Tree, "-", ps_sampledata$Tree_Health)
+  ps_sampledata$Tree <- factor(ps_sampledata$Tree, levels=c('T02 - dead', 'T05 - dead', 'T07 - dead', 'T03 - living', 'T04 - living', 'T06 - living'))
+  
+  df_points <- data.frame(nmds_16S$points) # pull points from the NMDS into a dataframe for plotting
+  df_points <- rownames_to_column(df_points, var = "barcode_pair") # make the rownames into a column so we can join with the sample_data
+  df_points <- left_join(df_points, ps_sampledata, by = "barcode_pair") # df_points is NMDS ordination points + sample_data
+  
+  # Prepare data for pairwise comparison lines
+  nucleic_acid_distance <- df_points %>% 
+    group_by(DO_ID) %>%
+    summarise(MDS1_DNA = MDS1[1], MDS2_DNA = MDS2[1], 
+              MDS1_RNA = MDS1[2], MDS2_RNA = MDS2[2]) %>%
+    ungroup() 
+  
+  dist_frame <- left_join(nucleic_acid_distance, ps_sampledata, by = "DO_ID") # make another dataframe with the line comparison data
+  
+  legend_plot = ggplot(df_points) +
+          geom_point(data = df_points,
+                aes(x = MDS1,
+                y = MDS2,
+                size = core_bottom_depth_cm,
+                shape = nucleic_acid,
+                color = Tree)) +
+          scale_color_manual(values = colors) +  # Custom colors for each factor level
+
+          geom_segment(data = nucleic_acid_distance,
+               aes(x = MDS1_DNA,
+                   y = MDS2_DNA,
+                   xend = MDS1_RNA,
+                   yend = MDS2_RNA), 
+               color = "black",
+               linewidth = commonweight) +
+           scale_size_continuous(range = commonrange) +
+    
+           labs(title = "16S ASVs -- legend plot",
+                    size = "Core bottom depth (cm)",
+                    shape = "Nucleic acid",
+                    color = "Tree Identity") +
+            theme(legend.position = "right")+
+           theme_classic(base_size = fontsize)
+  
+
+  legend_plot
+```
+
+# assemble the figure
+```{r}
+
+# get legend as grob
+legend = get_legend(legend_plot)
+
+
+
+all_no_legend = plot_grid(ASV_16S, ASV_ITS, trait_16S, trait_ITS,
+                 nrow = 2, 
+                 ncol = 2, align = 'vh')
+
+labeled = all_no_legend +
+  draw_text("NMDS2", x = 0.02, y = 0.45, hjust = "left", angle=90, size = fontsize) +
+  draw_text("NMDS1", x = 0.55, y = 0.02, size = fontsize) # x value is 1/2 of the 2/3 of the horizontal space which is the panels
+
+fig3 = plot_grid(labeled, legend, align = "h", rel_widths = c(3, 1))
+
+#create common x and y labels
+
+#fig3 = fig3_leg + draw_text("NMDS2", x = 0.025, y = 0., hjust = "left", angle=90) + draw_text("NMDS1", x = 0.4, y = 0.025, vjust = "bottom") # x value is 1/2 of the 2/3 of the horizontal space which is the panels
+
+```
+
+```{r}
+fig3
+```
+
+```{r}
+# create the figure file in this results and reports folders
+
+# requirements: 1000 pp1 (pixels per inch), 140 mm wide
+# 1 inch = 0.0393701 mm, 1 mm = 25.4 inches
+
+ppi = 1000
+
+w_mm = 140
+hw_ratio = 5/7 # arbitrary
+
+h_mm = w_mm*hw_ratio
+w_i = w_mm/25.4
+h_i = h_mm/25.4
+
+jpeg("Results/Figure3_NMDS_DNA-RNA_mip.jpg", width = w_i * ppi, height = h_i * ppi, res = ppi)
+fig3
+dev.off()
+
+jpeg("../../Reports/Figure3_NMDS_DNA-RNA_mip.jpg", width = w_i * ppi, height = h_i * ppi, res = ppi)
+fig3
+dev.off()
+
+
+png("Results/Figure3_NMDS_DNA-RNA_mip.png", width = w_i * ppi, height = h_i * ppi, res = ppi)
+fig3
+dev.off()
+
+png("../../Reports/Figure3_NMDS_DNA-RNA_mip.png", width = w_i * ppi, height = h_i * ppi, res = ppi)
+fig3
+dev.off()
+```

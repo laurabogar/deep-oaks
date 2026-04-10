@@ -1,0 +1,124 @@
+---
+title: "Supplementary_Figure_6"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#load required packages:
+```{r}
+library("phyloseq")
+library("tidyverse")
+```
+
+#load required data:
+```{r}
+ps16S_positive = readRDS("../../Analysis/Microbial Communities/Fungal-Bacterial Interactions/DeSeq2 Indicator Species Analysis/Results/ps16S_ASVs_RNA_positive_mip.rds")
+```
+
+# 
+```{r}
+
+# Melt relativized phyloseq object of positively-influenced 16S ASVs into a long dataframe
+df <- psmelt(ps16S_positive)
+
+df <- df %>%
+  mutate(
+    Tree_label = paste0(Tree, ", ", core_bottom_depth_cm, " cm")
+  )
+
+# Get unique combinations of sample data and sort
+sample_order <- df %>%
+  select(Sample, Tree_Health, Tree, core_bottom_depth_cm) %>%
+  distinct() %>%
+  arrange(Tree_Health, Tree, core_bottom_depth_cm) %>%
+  pull(Sample)
+
+# Relevel the Sample factor to reflect this order
+df$Sample <- factor(df$Sample, levels = sample_order)
+
+# Create label vector with names matching Sample IDs
+sample_labels <- df %>%
+  distinct(Sample, Tree_label) %>%
+  deframe()  # converts two-column data frame to named vector
+
+
+```
+
+
+```{r}
+text_size = 7
+supfig5 = ggplot(df, aes(x = Sample, y = Abundance, fill = Phylum)) +
+  geom_bar(stat = "identity", position = "stack") +
+  facet_wrap(~ Tree_Health, scales = "free_x") +
+  scale_x_discrete(labels = sample_labels) +
+  scale_fill_discrete(labels = function(x) gsub("p__", "", x)) +
+  theme_minimal(base_size = text_size) +
+  theme(
+    plot.margin = margin(t = 10, r = 10, b = 10, l = 10), # set margin widths: widen left margin of each plot so the panel labels can fit in top left. 5.5 is default pt size for margins in ggplot.
+    axis.text = element_text(size = text_size),
+    axis.title = element_text(size = text_size),
+    legend.text = element_text(size = text_size),
+    legend.title = element_text(size = text_size),
+    strip.text = element_text(size = text_size),
+    plot.title = element_text(size = text_size),
+    plot.subtitle = element_text(size = text_size),
+    plot.caption = element_text(size = text_size),
+    axis.text.x = element_text(angle = 90, hjust = 1),
+    legend.key.size = unit(0.2, "cm")
+  ) +
+  ylab("Relative abundance") +
+  xlab("Soil core (tree, botttom depth)") +
+  labs(fill = "Phylum")
+ supfig5
+```
+
+# add caption
+```{r}
+supFig5_caption <- annotate_figure(supfig5,
+                top = text_grob("Supplementary Figure 5. Relative abundance of 'ectomycorrhizal−promoted' ASVs within whole−sample bacterial \n communities as measured by 16S rRNA metabarcoding. 'Ectomycorrhizal−promoted' here refers \n to ASVs whose crude abundance in a soil sample was positively correlated with the imputed biomass \n of ectomycorrhizal fungi. The y−axis represents the proportion (0−1) of the RNA−based bacterial \n community comprised by these ASVs within each discrete soil sample. On the X−axis, soil sample names denote \n both tree identity and soil depth in cm, and are clustered by tree identity. ASVs are colored \n according to their phylum.", color = "black", size = 7))
+supFig5_caption
+```
+
+### export:
+```{r}
+# create the figure file in this results folder
+
+# requirements: 1000 pp1 (pixels per inch), 140 mm wide
+# 1 inch = 0.0393701 mm, 1 mm = 25.4 inches
+
+ppi = 300
+
+w_mm = 140
+hw_ratio = 6/11 # arbitrary
+
+h_mm = w_mm*hw_ratio
+w_i = w_mm/25.4
+h_i = h_mm/25.4
+```
+
+```{r}
+jpeg("Results/sup_fig_5_ecm_promoted_bac_relabund.jpg", width = w_i * ppi, height = h_i * ppi, res = ppi)
+
+
+supFig5_caption
+dev.off()
+```
+
+```{r}
+png("Results/sup_fig_5_ecm_promoted_bac_relabund.png", width = w_i * ppi, height = h_i * ppi, res = ppi)
+
+
+supFig5_caption
+dev.off()
+```
+
+
+
+
+
+
+
+

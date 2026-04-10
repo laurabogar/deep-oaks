@@ -53,7 +53,7 @@ background = theme_minimal() # visually simplify background
 xaxislabel = xlab("") # set x-axis label
 
 theme = theme(text = element_text(size = 7), # set font size
-              plot.margin = margin(t = 15, r = 5.5, b = 5.5, l = 5.5), # set margin widths: widen left margin of each plot so the panel labels can fit in top left. 5.5 is default pt size for margins in ggplot.
+              plot.margin = margin(t = 20, r = 40, b = 40, l = 40), # set margin widths: widen left margin of each plot so the panel labels can fit in top left. 5.5 is default pt size for margins in ggplot.
               axis.title.x = element_blank(), # no x-axis, if doing shared x-axis later
               legend.position = "bottom"
 )
@@ -90,7 +90,7 @@ relab
 ```{r}
 # make imputed biomass half of the figure
 imputed.discrete.depth = mutate(RNA_fungal_trait_biomass, core_bottom_depth_cm = as.character(core_bottom_depth_cm)) # make a dataframe in which depth is a discrete variable
-imputed.discrete.depth$core_bottom_depth_cm <- factor(discrete.depth$core_bottom_depth_cm, levels=c("7.5", "15", "22.5", "30", "37.5", "45")) # put the levels of depth in order
+imputed.discrete.depth$core_bottom_depth_cm <- factor(imputed.discrete.depth$core_bottom_depth_cm, levels=c("7.5", "15", "22.5", "30", "37.5", "45")) # put the levels of depth in order
 
 # make boxplot:
 mass = ggplot(imputed.discrete.depth, aes(x = core_bottom_depth_cm, y = ectomycorrhizal, fill = Tree_Health, color = Tree_Health)) + # 'ectomycorrhizal' is a proportion; 100*ectomycorrhizal is a percentage
@@ -131,7 +131,7 @@ supFig4_sharedxlab
 # add caption
 ```{r}
 supFig4_caption <- annotate_figure(supFig4_sharedxlab,
-                top = text_grob("Supplementary Figure 5. Box and whisker plots showing the distribution of imputed biomass (A) and relative \n abundance (B) of ectomycorrhizal fungi across discrete soil depths. Imputed biomass was calculated as: \n the proportion of the fungal community (as measured by 16S rRNA metabarcoding) assigned to the ectomycorrhizal \n primary lifestyle * total living fungal biomass as measured by PLFA. Relative abundance \n was calculated as the proportion of the fungal community assigned to the ectomycorrhizal primary lifestyle * 100. \n Box boundaries are the first and third quartiles. Individual data points are overlayed; sample size \n is variable between boxes due to complications with RNA extraction and amplification for metabarcoding.", color = "black", size = 7))
+                top = text_grob("Supplementary Figure 4. Box and whisker plots showing the distribution of imputed biomass (A) and relative \n abundance (B) of ectomycorrhizal fungi across discrete soil depths. Imputed biomass was calculated as: \n the proportion of the fungal community (as measured by 16S rRNA metabarcoding) assigned to the ectomycorrhizal \n primary lifestyle * total living fungal biomass as measured by PLFA. Relative abundance \n was calculated as the proportion of the fungal community assigned to the ectomycorrhizal primary lifestyle * 100. \n Box boundaries are the first and third quartiles. Individual data points are overlayed; sample size \n is variable between boxes due to complications with RNA extraction and amplification for metabarcoding.", color = "black", size = 12))
 supFig4_caption
 ```
 
@@ -139,24 +139,17 @@ supFig4_caption
 ```{r}
 # set size and resolution parameters
 
-# requirements: 1000 ppi (pixels per inch), 140 mm wide
-# 1 inch = 0.0393701 mm, 1 mm = 25.4 inches
-
 ppi = 1000
 
-w_mm = 140
-hw_ratio = 4/5 # arbitrary
-
-h_mm = w_mm*hw_ratio
-w_i = w_mm/25.4
-h_i = h_mm/25.4
+w_i = 7.5
+h_i = 10
 ```
 
 
 ```{r}
 # create the jpg figure file in this results folder and in the Figures folder
 
-png("Results/Supplementary_Figure_4_ecm_biomass_relabund_by_depth.png", width = w_i * ppi, height = h_i * ppi, res = ppi)
+png("Results/Supplementary_Figure_4_ecm_biomass_relabund_by_depth.png", width = 10 * ppi, height = 7.5 * ppi, res = ppi)
 
 supFig4_caption
 dev.off()

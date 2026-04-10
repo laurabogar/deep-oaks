@@ -1,0 +1,221 @@
+---
+title: "DOMC_Fig04_2024_11_17"
+author: "Glade Bogar"
+date: "2024-11-18"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#load required packages:
+```{r}
+library("tidyverse")
+library("cowplot")
+library("ggplot2")
+```
+
+#load required data:
+```{r}
+C_metadata <- read.csv("../../Analysis/Carbon/Density_Corrected_C/Results/per_sample_metadata_Ccorrected_mip.csv")
+
+#ecm_metadata = read.csv("../../Analysis/Microbial Communities/Fungal-Bacterial Interactions/DeSeq2 Indicator Species Analysis/Results/metadata_with_ECMasssociated3trees_mip.csv")
+```
+
+
+```{r}
+# set common features of graphs
+
+CN_lab = "C:N"
+C_lab = "Mg C / hectare"
+depth_lab = "Core bottom depth (cm)"
+ecm_lab = "ECM-assoicated biomass (ng lipid/g soil)"
+fontsize = 7
+```
+
+
+#   graph 1: stored C by Depth, Tree Health:
+```{r}
+C_by_depth_leg <- ggplot(C_metadata, aes(x = core_bottom_depth_cm,
+                                                            y = mass_C_Mg_per_ha,
+                                                            color = Tree_Health)) +
+  geom_point() +
+  
+  geom_smooth(method = 'lm', formula = 'y ~ log(x)' ) +
+  
+  ylim(0, NA) +
+  
+  xlim(0, NA) +
+  
+  scale_color_manual(name = "Tree mortality", values = c("darkblue", "deeppink")) +
+  
+  theme_classic(base_size = fontsize) +
+  
+  xlab(depth_lab) +
+  
+  ylab(C_lab)
+
+leg = get_legend(C_by_depth_leg)
+
+C_by_depth <- ggplot(C_metadata, aes(x = core_bottom_depth_cm,
+                                                            y = mass_C_Mg_per_ha,
+                                                            color = Tree_Health)) +
+  geom_point() +
+  
+  geom_smooth(method = 'lm', formula = 'y ~ log(x)' ) +
+  
+  ylim(0, NA) +
+  
+  xlim(0, NA) +
+  
+  scale_color_manual(name = "Tree mortality", values = c("darkblue", "deeppink")) +
+  
+  theme_classic(base_size = fontsize) +
+  
+  theme(legend.position = "none") +
+  
+  xlab(depth_lab) +
+  
+  ylab(C_lab)
+
+
+C_by_depth
+```
+
+
+
+#   graph 2: C:N by Depth, Tree Health:
+```{r}
+C_N_by_depth <- ggplot(C_metadata, aes(x = core_bottom_depth_cm,
+                                                            y = C_per_N_Ratio,
+                                                            color = Tree_Health)) +
+  geom_point() +
+  
+  geom_smooth(method = 'lm') +
+  
+  ylim(0, NA) +
+  
+  xlim(0, NA) +
+  
+  scale_color_manual(name = "Tree mortality", values = c("darkblue", "deeppink")) +
+  
+  theme_classic(base_size = fontsize) + 
+  
+  theme(legend.position = "none") +
+  
+  xlab(depth_lab) +
+  ylab(CN_lab)
+
+C_N_by_depth
+```
+
+
+
+#   graph 3: stored C by ECM + ECM-associated 16S ng/g:
+#   note that this is a reduced dataset: RNA-based fungal communities only available for 21/36 samples.
+```{r}
+C_by_ecm <- ggplot(ecm_metadata, aes(x = ECM_associated_biomass,
+                                                            y = mass_C_Mg_per_ha)) +
+  geom_point() +
+  
+  geom_smooth(method = 'lm') +
+  
+  ylim(0, NA) +
+  
+  xlim(0, NA) +
+  
+  theme_classic(base_size = fontsize) + 
+  
+  xlab(ecm_lab) +
+  ylab(C_lab)
+
+C_by_ecm
+```
+
+
+#   graph 4: C:N by ECM + ECM-associated 16S ng/g:
+#   note that this is a reduced dataset: RNA-based fungal communities only available for 21/36 samples.
+```{r}
+C_N_by_ecm <- ggplot(ecm_metadata, aes(x = ECM_associated_biomass,
+                                                            y = C_per_N_Ratio)) +
+  geom_point() +
+  
+  geom_smooth(method = 'lm') +
+  
+  ylim(0, NA) +
+  
+  xlim(0, NA) +
+  
+  theme_classic(base_size = fontsize) + 
+  
+  xlab(ecm_lab) +
+  ylab(CN_lab)
+
+C_N_by_ecm
+```
+# Compile figure with Cowplot
+```{r}
+
+# First row
+row1 <- plot_grid(C_N_by_depth, C_by_depth, labels = c("A", "B"), label_y = 0.98)
+
+# Second row
+row2 <- plot_grid(C_N_by_ecm, C_by_ecm, labels = c("C", "D"), label_y = 0.98)
+
+# Stack rows vertically
+combined_plot <- plot_grid(row1, row2, ncol = 1)
+
+fig6 = ggdraw(combined_plot) + draw_grob(leg, hjust = -0.4, vjust = -0.405)
+
+fig6
+```
+
+
+
+
+```{r}
+# create the jpg figure file in this results folder and the reports folder
+
+# requirements: 1000 pp1 (pixels per inch), 140 mm wide
+# 1 inch = 0.0393701 mm, 1 mm = 25.4 inches
+
+ppi = 1000
+
+w_mm = 140
+hw_ratio = 5/7 # arbitrary
+
+h_mm = w_mm*hw_ratio
+w_i = w_mm/25.4
+h_i = h_mm/25.4
+```
+
+```{r}
+jpeg("../../Reports/Figure6_carbon.jpg", width = w_i * ppi, height = h_i * ppi, res = ppi)
+
+fig6
+dev.off()
+```
+
+```{r}
+jpeg("Results/Figure6_carbon.jpg", width = w_i * ppi, height = h_i * ppi, res = ppi)
+
+fig6
+dev.off()
+```
+
+```{r}
+png("Results/Figure6_carbon.png", width = w_i * ppi, height = h_i * ppi, res = ppi)
+
+fig6
+dev.off()
+```
+
+```{r}
+png("../../Reports/Figure6_carbon.png", width = w_i * ppi, height = h_i * ppi, res = ppi)
+
+fig6
+dev.off()
+```
+
+
