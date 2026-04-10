@@ -1,0 +1,2003 @@
+---
+title: "ECM_vs_16Salphadiv"
+author: "Glade Bogar"
+date: "2024-10-28"
+output: html_document
+---
+
+```{r setup, eval=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that evals both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+###compare ECM biomass vs 16S alpha-diversity (observed and Shannon) with depth vs. 16S alpha-div; is ECM biomass better correlated?
+##repeat for ASVs, genera; RNA, DNA.
+
+#set working directory: setwd("~/Desktop/GAD_ELN/DO/Analysis/ECM_vs_16Salphadiv")
+
+#load required packages:
+```{r}
+library("phyloseq")
+library("vegan")
+library("tidyverse")
+library("lme4")
+library("lmerTest")
+```
+
+#load required data:
+```{r}
+ps16S <- read_rds("../microeco/Results/ps16S_faprotax.rds")
+psITS <- read_rds("../Microbial_Community_ITS/Results/psITS_remove_8_reads_fungaltraits.rds")
+fungal_functions <- read_csv("../Microbial_Community_ITS/Results/ITS_Functions_By_Sample/Primary_lifestyle_by_sample.csv")
+metadata <- read_csv("../../TidyData/Metadata/Results/per_sample_metadata.csv")
+```
+
+#read depths:
+```{r}
+sort(sample_sums(psITS))
+```
+
+#subset exclude controls:
+```{r}
+psITS
+psITS <- subset_samples(psITS, core_top_depth_cm >= 0)
+psITS
+```
+
+#select RNA-only:
+```{r}
+psITS
+psITS_RNA <- subset_samples(psITS, nucleic_acid == "RNA")
+psITS_RNA
+```
+
+#remove taxa that aren't in the dataset anymore:
+```{r}
+psITS_RNA
+psITS_RNA <- prune_taxa(taxa_sums(psITS_RNA) > 0, psITS_RNA)
+psITS_RNA
+```
+
+#get sample data:
+```{r}
+psITS_RNA_sample_data <- data.frame(sample_data(psITS_RNA))
+```
+
+#select PLFA data:
+```{r}
+PLFA_total_fungi <- select(psITS_RNA_sample_data, PLFA_Total_Fungi_ng_g)
+PLFA_total_fungi <- PLFA_total_fungi$PLFA_Total_Fungi_ng_g
+```
+
+#transform to relative abundances:
+```{r}
+psITS_RNA_relative <- transform_sample_counts(psITS_RNA, function(x){x / sum(x)})
+```
+
+#pre-transform sample sums:
+```{r}
+sample_sums(psITS_RNA_relative)
+```
+
+#transform ASV table:
+```{r}
+# Divide the counts in sample n by size_factors[n] and save in matrix `mat`
+mat <- sweep(otu_table(psITS_RNA_relative), 1 + taxa_are_rows(psITS_RNA_relative), PLFA_total_fungi, FUN = `*`)
+
+# Make a new phyloseq object with the transformed counts
+psITS_RNA_relative_PLFAcorr <- psITS_RNA_relative
+otu_table(psITS_RNA_relative_PLFAcorr) <- otu_table(mat, taxa_are_rows = taxa_are_rows(psITS_RNA_relative))
+```
+
+#post-transform sample sums:
+```{r}
+sample_sums(psITS_RNA_relative_PLFAcorr)
+```
+
+#should match PLFA numbers:
+```{r}
+PLFA_total_fungi
+```
+
+#worked.
+
+#re-calculate per-sample fungal functional traits for append to 16S.
+
+#List 'taxonomic' ranks"
+```{r}
+rank_names(psITS_RNA_relative_PLFAcorr)
+```
+
+#rename (pre-written code):
+```{r}
+psITS_fungaltraits_relative <- psITS_RNA_relative_PLFAcorr
+```
+
+#extract taxa table
+```{r}
+# Extract abundance matrix from the phyloseq object
+TAXA1 <- as(tax_table(psITS_fungaltraits_relative), "matrix")
+# Coerce to data.frame
+psITS_fungaltraits_taxa <- as.data.frame(TAXA1)
+# Save as .csv
+#write_csv(psITS_fungaltraits_taxa, "Results/Fungal_Traits_Taxa_Table.csv")
+```
+
+#Extract OTU table
+```{r}
+# Extract abundance matrix from the phyloseq object
+OTU1 <- as(otu_table(psITS_fungaltraits_relative), "matrix")
+# Coerce to data.frame
+psITS_fungaltraits_OTU <- as.data.frame(OTU1)
+# Save as .csv
+#write_csv(psITS_fungaltraits_OTU, "Results/Fungal_Traits_OTU_Table.csv")
+```
+
+#Extract sample names
+```{r}
+samplenames <- as.data.frame(sample_names(psITS_fungaltraits_relative))
+#write_csv(samplenames, "Results/Fungal_Traits_Sample_Names.csv")
+```
+
+#Vandepol split genus Mortierella in 2020 - manually assigning genus mortierella's functions to what are now genera actinomortierella, gryganskiella, linnemannia, lunasporangiospora, necromortierella, podila.
+#Note this in the methods.
+
+#Add samplenames to first column of OTU_Table:
+```{r}
+psITS_fungaltraits_OTU <- rownames_to_column(psITS_fungaltraits_OTU, var = "DO_sample_names")
+```
+
+### 1:Primary_lifestyle
+
+#replace entire first row of OTU_table with Primary_lifestyle column of Taxa_table.csv, including heading.
+```{r}
+Primary_lifestyle_transposed <- t(psITS_fungaltraits_taxa$Primary_lifestyle)
+Primary_lifestyle_transposed <- as.data.frame(Primary_lifestyle_transposed)
+column_title <- as.data.frame(c("Primary_lifestyle"))
+Primary_lifestyle_transposed <- bind_cols(column_title, Primary_lifestyle_transposed)
+colnames(Primary_lifestyle_transposed) <- colnames(psITS_fungaltraits_OTU)
+psITS_fungaltraits_OTU <- data.frame(lapply(psITS_fungaltraits_OTU, as.character), stringsAsFactors = FALSE)
+Primary_lifestyle <- bind_rows(Primary_lifestyle_transposed, psITS_fungaltraits_OTU)
+```
+
+#transpose, fix column names, remove rownames (ASVs), re-code as numeric:
+```{r}
+Primary_lifestyle <- t(Primary_lifestyle)
+
+colnames(Primary_lifestyle) <- as.character(Primary_lifestyle[1, ])
+Primary_lifestyle <- as.data.frame(Primary_lifestyle[-1, ])
+rownames(Primary_lifestyle) <- NULL
+
+recode_numeric <- select(Primary_lifestyle, -Primary_lifestyle)
+recode_numeric <- data.frame(lapply(recode_numeric, as.numeric))
+
+Primary_lifestyle <- bind_cols(Primary_lifestyle$Primary_lifestyle, recode_numeric)
+Primary_lifestyle <- dplyr::rename(Primary_lifestyle, Primary_lifestyle = "...1")
+```
+
+#collapse all duplicate values:
+```{r}
+metadata_Primary_lifestyle_grouped <- Primary_lifestyle %>%
+  group_by(Primary_lifestyle) %>%
+  summarise(across(everything(), sum))
+```
+
+#Transpose, edit for later leftjoin:
+```{r}
+metadata_Primary_lifestyle_grouped_t <- as.data.frame(t(metadata_Primary_lifestyle_grouped))
+metadata_Primary_lifestyle_grouped_t <- rownames_to_column(metadata_Primary_lifestyle_grouped_t, var = "Sequencing_ID")
+```
+
+#check sums:
+```{r}
+checksums <- metadata_Primary_lifestyle_grouped_t
+checksums <- checksums[-1,-1]
+checksums <- mutate(checksums, across(everything(), as.numeric))
+checksums <- mutate(checksums, traitsums = rowSums(across(everything())))
+
+checksums$traitsums
+```
+
+#export collapsed metadata:
+```{r}
+write_csv(metadata_Primary_lifestyle_grouped_t, "Results/Primary_lifestyle_by_sample.csv", col_names = FALSE)
+```
+
+#add ECM ng/g to 16S Metadata
+
+#read depths:
+```{r}
+sort(sample_sums(ps16S))
+```
+
+#subset exclude controls:
+```{r}
+ps16S
+ps16S <- subset_samples(ps16S, core_top_depth_cm >= 0)
+ps16S
+```
+
+#select RNA-only:
+```{r}
+ps16S
+ps16S_RNA <- subset_samples(ps16S, nucleic_acid == "RNA")
+ps16S_RNA
+```
+
+#remove taxa that aren't in the dataset anymore:
+```{r}
+ps16S_RNA
+ps16S_RNA <- prune_taxa(taxa_sums(ps16S_RNA) > 0, ps16S_RNA)
+ps16S_RNA
+```
+
+#get sample data:
+```{r}
+ps16S_RNA_sample_data <- data.frame(sample_data(ps16S_RNA))
+```
+
+#load 'fungal functions (created above):
+```{r}
+fungal_functions <- read_csv("Results/Primary_lifestyle_by_sample.csv")
+```
+
+#extract, join data:
+```{r}
+psITS_metadata <- data.frame(sample_data(psITS_RNA_relative_PLFAcorr))
+psITS_metadata <- rownames_to_column(psITS_metadata, var = "SeqID")
+fungal_functions <- dplyr::rename(fungal_functions, SeqID = "Primary_lifestyle")
+
+psITS_metadata <- left_join(psITS_metadata, fungal_functions)
+
+ps16S_metadata <- data.frame(sample_data(ps16S_RNA))
+ps16S_metadata <- rownames_to_column(ps16S_metadata, var = "SeqID")
+
+psITS_metadata <- select(psITS_metadata, nucleic_acid, DO_ID, ectomycorrhizal)
+
+ps16S_metadata$DO_Name <- str_c(ps16S_metadata$DO_ID, ps16S_metadata$nucleic_acid, sep = "_")
+psITS_metadata$DO_Name <- str_c(psITS_metadata$DO_ID, psITS_metadata$nucleic_acid, sep = "_")
+psITS_metadata <- select(psITS_metadata, DO_Name, ectomycorrhizal)
+
+ps16S_metadata <- left_join(ps16S_metadata, psITS_metadata, by = "DO_Name")
+
+ps16S_metadata <- column_to_rownames(ps16S_metadata, var = "SeqID")
+
+sample_data(ps16S_RNA) <- sample_data(ps16S_metadata)
+
+ps16S_RNA
+```
+
+
+#sample depths again:
+```{r}
+sort(sample_sums(ps16S_RNA))
+```
+
+#Rarefy to shallowest sample, I guess.
+```{r}
+ps16S_RNA <- rarefy_even_depth(ps16S_RNA, sample.size = 25427, rngseed = 12, replace = TRUE, trimOTUs = TRUE)
+
+sort(sample_sums(ps16S_RNA))
+```
+
+
+#calculate richness - note, using our trimmed sample for this. Having seen our rarefaction curves, I think it's fine.
+```{r}
+ps16S_RNA_alphadiv <- estimate_richness(ps16S_RNA,
+                                             split = TRUE,
+                                             measures = c("Observed",
+                                                          "Shannon"))
+```
+
+#join data:
+```{r}
+data_1 <- rownames_to_column(ps16S_metadata, var = "SeqID")
+data_2 <- rownames_to_column(ps16S_RNA_alphadiv, var = "SeqID")
+
+ps16S_RNA_metadata <- left_join(data_2, data_1)
+```
+
+
+#Observed
+
+#plot: observed vs ECM by tree health
+```{r}
+ASVs_RNA <- ggplot(ps16S_RNA_metadata, aes(x = ectomycorrhizal,
+                                                            y = Observed,
+                                                            color = Tree_Health)) +
+  geom_point() +
+  
+  geom_smooth(method = 'lm') +
+  
+  #ylim(-100, NA) +
+  
+  #xlim(0, NA) +
+  
+  theme_classic()
+
+ASVs_RNA
+```
+
+
+#test:
+```{r}
+test <- lmer(Observed ~ ectomycorrhizal * Tree_Health + (1|Tree),
+             data =  ps16S_RNA_metadata)
+
+summary(test)
+```
+
+#insignificant interaction, re-run:
+#test:
+```{r}
+test <- lmer(Observed ~ ectomycorrhizal + Tree_Health + (1|Tree),
+             data =  ps16S_RNA_metadata)
+
+summary(test)
+```
+
+#plot: observed vs ECM
+```{r}
+ASVs_RNA <- ggplot(ps16S_RNA_metadata, aes(x = ectomycorrhizal,
+                                                            y = Observed,
+                                                            #color = Tree_Health
+                                           )) +
+  geom_point() +
+  
+  geom_smooth(method = 'lm') +
+  
+  #ylim(-100, NA) +
+  
+  #xlim(0, NA) +
+  
+  theme_classic()
+
+ASVs_RNA
+```
+
+#looks pretty outlier driven.
+
+#remove and re-try:
+```{r}
+ps16S_RNA_metadata_rem1 <- filter(ps16S_RNA_metadata, ectomycorrhizal < 400)
+```
+
+#test:
+```{r}
+test <- lmer(Observed ~ ectomycorrhizal + Tree_Health + (1|Tree),
+             data =  ps16S_RNA_metadata_rem1)
+
+summary(test)
+```
+
+#yep, just that one. Could keep if we feel strongly that it's correct.
+
+#compare with depth:
+
+#plot: observed vs depth by tree health
+```{r}
+ASVs_RNA <- ggplot(ps16S_RNA_metadata, aes(x = core_bottom_depth_cm,
+                                                            y = Observed,
+                                                            color = Tree_Health)) +
+  geom_point() +
+  
+  geom_smooth(method = 'lm') +
+  
+  #ylim(-100, NA) +
+  
+  #xlim(0, NA) +
+  
+  theme_classic()
+
+ASVs_RNA
+```
+
+#huh. Very different.
+
+#test:
+```{r}
+test <- lmer(Observed ~ core_bottom_depth_cm * Tree_Health + (1|Tree),
+             data =  ps16S_RNA_metadata)
+
+summary(test)
+```
+
+#and without the interaction:
+
+#test:
+```{r}
+test <- lmer(Observed ~ core_bottom_depth_cm + Tree_Health + (1|Tree),
+             data =  ps16S_RNA_metadata)
+
+summary(test)
+```
+
+#nearly!
+
+#Shannon
+
+#plot: Shannon vs ECM by tree health
+```{r}
+ASVs_RNA <- ggplot(ps16S_RNA_metadata, aes(x = ectomycorrhizal,
+                                                            y = Shannon,
+                                                            color = Tree_Health)) +
+  geom_point() +
+  
+  geom_smooth(method = 'lm') +
+  
+  #ylim(-100, NA) +
+  
+  #xlim(0, NA) +
+  
+  theme_classic()
+
+ASVs_RNA
+```
+
+
+#test:
+```{r}
+test <- lmer(Shannon ~ ectomycorrhizal * Tree_Health + (1|Tree),
+             data =  ps16S_RNA_metadata)
+
+summary(test)
+```
+
+#insignificant interaction, re-run:
+#test:
+```{r}
+test <- lmer(Shannon ~ ectomycorrhizal + Tree_Health + (1|Tree),
+             data =  ps16S_RNA_metadata)
+
+summary(test)
+```
+
+#plot: Shannon vs ECM
+```{r}
+ASVs_RNA <- ggplot(ps16S_RNA_metadata, aes(x = ectomycorrhizal,
+                                                            y = Shannon,
+                                                            #color = Tree_Health
+                                           )) +
+  geom_point() +
+  
+  geom_smooth(method = 'lm') +
+  
+  #ylim(-100, NA) +
+  
+  #xlim(0, NA) +
+  
+  theme_classic()
+
+ASVs_RNA
+```
+
+#looks pretty outlier driven.
+
+#remove and re-try:
+```{r}
+ps16S_RNA_metadata_rem1 <- filter(ps16S_RNA_metadata, ectomycorrhizal < 400)
+```
+
+#test:
+```{r}
+test <- lmer(Shannon ~ ectomycorrhizal + Tree_Health + (1|Tree),
+             data =  ps16S_RNA_metadata_rem1)
+
+summary(test)
+```
+
+#yep, just that one. Could keep if we feel strongly that it's correct.
+
+#compare with depth:
+
+#plot: Shannon vs depth by tree health
+```{r}
+ASVs_RNA <- ggplot(ps16S_RNA_metadata, aes(x = core_bottom_depth_cm,
+                                                            y = Shannon,
+                                                            color = Tree_Health)) +
+  geom_point() +
+  
+  geom_smooth(method = 'lm') +
+  
+  #ylim(-100, NA) +
+  
+  #xlim(0, NA) +
+  
+  theme_classic()
+
+ASVs_RNA
+```
+
+#huh. Very different.
+
+#test:
+```{r}
+test <- lmer(Shannon ~ core_bottom_depth_cm * Tree_Health + (1|Tree),
+             data =  ps16S_RNA_metadata)
+
+summary(test)
+```
+
+#and without the interaction:
+
+#test:
+```{r}
+test <- lmer(Shannon ~ core_bottom_depth_cm + Tree_Health + (1|Tree),
+             data =  ps16S_RNA_metadata)
+
+summary(test)
+```
+
+#now depth IS signifant. Interesting!
+
+#repeat those with 16S genera:
+
+#select RNA-only:
+```{r}
+ps16S
+ps16S_RNA <- subset_samples(ps16S, nucleic_acid == "RNA")
+ps16S_RNA
+```
+
+#remove taxa that aren't in the dataset anymore:
+```{r}
+ps16S_RNA
+ps16S_RNA <- prune_taxa(taxa_sums(ps16S_RNA) > 0, ps16S_RNA)
+ps16S_RNA
+```
+
+#get sample data:
+```{r}
+ps16S_RNA_sample_data <- data.frame(sample_data(ps16S_RNA))
+```
+
+#load 'fungal functions (created above):
+```{r}
+fungal_functions <- read_csv("Results/Primary_lifestyle_by_sample.csv")
+```
+
+#extract, join data:
+```{r}
+psITS_metadata <- data.frame(sample_data(psITS_RNA_relative_PLFAcorr))
+psITS_metadata <- rownames_to_column(psITS_metadata, var = "SeqID")
+fungal_functions <- dplyr::rename(fungal_functions, SeqID = "Primary_lifestyle")
+
+psITS_metadata <- left_join(psITS_metadata, fungal_functions)
+
+ps16S_metadata <- data.frame(sample_data(ps16S_RNA))
+ps16S_metadata <- rownames_to_column(ps16S_metadata, var = "SeqID")
+
+psITS_metadata <- select(psITS_metadata, nucleic_acid, DO_ID, ectomycorrhizal)
+
+ps16S_metadata$DO_Name <- str_c(ps16S_metadata$DO_ID, ps16S_metadata$nucleic_acid, sep = "_")
+psITS_metadata$DO_Name <- str_c(psITS_metadata$DO_ID, psITS_metadata$nucleic_acid, sep = "_")
+psITS_metadata <- select(psITS_metadata, DO_Name, ectomycorrhizal)
+
+ps16S_metadata <- left_join(ps16S_metadata, psITS_metadata, by = "DO_Name")
+
+ps16S_metadata <- column_to_rownames(ps16S_metadata, var = "SeqID")
+
+sample_data(ps16S_RNA) <- sample_data(ps16S_metadata)
+
+ps16S_RNA
+```
+
+
+#sample depths again:
+```{r}
+sort(sample_sums(ps16S_RNA))
+```
+
+#agglomerate to genera.
+
+#list available functional traits:
+```{r}
+rank_names(ps16S_RNA)
+```
+
+#remove traits here, screws up agglomeration:
+```{r}
+rank_names(ps16S_RNA)
+
+tax_table_ps16S_RNA <- tax_table(ps16S_RNA)
+
+tax_table_select <- data.frame(tax_table_ps16S_RNA)
+
+tax_table_select <- select(tax_table_select,
+                           -combined_traits)
+
+tax_table_select <- as.matrix(tax_table_select)
+row.names(tax_table_select) <- row.names(tax_table_ps16S_RNA)
+tax_table_select <- tax_table(tax_table_select)
+
+tax_table(ps16S_RNA) <- tax_table_select
+
+rank_names(ps16S_RNA)
+```
+
+
+#Agglomerate to genus:
+```{r}
+ps16S_RNA_genera <- tax_glom(ps16S_RNA, taxrank = "Genus", NArm = FALSE)
+ps16S_RNA_genera
+```
+
+#sample depths again:
+```{r}
+sort(sample_sums(ps16S_RNA_genera))
+```
+
+#Rarefy to shallowest sample, I guess.
+```{r}
+ps16S_RNA_genera <- rarefy_even_depth(ps16S_RNA_genera, sample.size = 25427, rngseed = 12, replace = TRUE, trimOTUs = TRUE)
+
+sort(sample_sums(ps16S_RNA_genera))
+```
+
+
+#calculate richness - note, using our trimmed sample for this. Having seen our rarefaction curves, I think it's fine.
+```{r}
+ps16S_RNA_genera_alphadiv <- estimate_richness(ps16S_RNA_genera,
+                                             split = TRUE,
+                                             measures = c("Observed",
+                                                          "Shannon"))
+```
+
+#join data:
+```{r}
+data_1 <- rownames_to_column(ps16S_metadata, var = "SeqID")
+data_2 <- rownames_to_column(ps16S_RNA_genera_alphadiv, var = "SeqID")
+
+ps16S_RNA_genera_metadata <- left_join(data_2, data_1)
+```
+
+
+#Observed
+
+#plot: observed vs ECM by tree health
+```{r}
+ASVs_RNA <- ggplot(ps16S_RNA_genera_metadata, aes(x = ectomycorrhizal,
+                                                            y = Observed,
+                                                            color = Tree_Health)) +
+  geom_point() +
+  
+  geom_smooth(method = 'lm') +
+  
+  #ylim(-100, NA) +
+  
+  #xlim(0, NA) +
+  
+  theme_classic()
+
+ASVs_RNA
+```
+
+
+#test:
+```{r}
+test <- lmer(Observed ~ ectomycorrhizal * Tree_Health + (1|Tree),
+             data =  ps16S_RNA_genera_metadata)
+
+summary(test)
+```
+
+#insignificant interaction, re-run:
+#test:
+```{r}
+test <- lmer(Observed ~ ectomycorrhizal + Tree_Health + (1|Tree),
+             data =  ps16S_RNA_genera_metadata)
+
+summary(test)
+```
+
+#plot: observed vs ECM
+```{r}
+ASVs_RNA <- ggplot(ps16S_RNA_genera_metadata, aes(x = ectomycorrhizal,
+                                                            y = Observed,
+                                                            #color = Tree_Health
+                                           )) +
+  geom_point() +
+  
+  geom_smooth(method = 'lm') +
+  
+  #ylim(-100, NA) +
+  
+  #xlim(0, NA) +
+  
+  theme_classic()
+
+ASVs_RNA
+```
+
+#looks pretty outlier driven.
+
+#remove and re-try:
+```{r}
+ps16S_RNA_genera_metadata_rem1 <- filter(ps16S_RNA_genera_metadata, ectomycorrhizal < 400)
+```
+
+#test:
+```{r}
+test <- lmer(Observed ~ ectomycorrhizal + Tree_Health + (1|Tree),
+             data =  ps16S_RNA_genera_metadata_rem1)
+
+summary(test)
+```
+
+#outlier renoval IMPROVES model. weird!!
+
+#compare with depth:
+
+#plot: observed vs depth by tree health
+```{r}
+ASVs_RNA <- ggplot(ps16S_RNA_genera_metadata, aes(x = core_bottom_depth_cm,
+                                                            y = Observed,
+                                                            color = Tree_Health)) +
+  geom_point() +
+  
+  geom_smooth(method = 'lm') +
+  
+  #ylim(-100, NA) +
+  
+  #xlim(0, NA) +
+  
+  theme_classic()
+
+ASVs_RNA
+```
+
+#huh. Very different.
+
+#test:
+```{r}
+test <- lmer(Observed ~ core_bottom_depth_cm * Tree_Health + (1|Tree),
+             data =  ps16S_RNA_genera_metadata)
+
+summary(test)
+```
+
+#and without the interaction:
+
+#test:
+```{r}
+test <- lmer(Observed ~ core_bottom_depth_cm + Tree_Health + (1|Tree),
+             data =  ps16S_RNA_genera_metadata)
+
+summary(test)
+```
+
+#depth very significant now.
+
+#Shannon
+
+#plot: Shannon vs ECM by tree health
+```{r}
+ASVs_RNA <- ggplot(ps16S_RNA_genera_metadata, aes(x = ectomycorrhizal,
+                                                            y = Shannon,
+                                                            color = Tree_Health)) +
+  geom_point() +
+  
+  geom_smooth(method = 'lm') +
+  
+  #ylim(-100, NA) +
+  
+  #xlim(0, NA) +
+  
+  theme_classic()
+
+ASVs_RNA
+```
+
+
+#test:
+```{r}
+test <- lmer(Shannon ~ ectomycorrhizal * Tree_Health + (1|Tree),
+             data =  ps16S_RNA_genera_metadata)
+
+summary(test)
+```
+
+#insignificant interaction, re-run:
+#test:
+```{r}
+test <- lmer(Shannon ~ ectomycorrhizal + Tree_Health + (1|Tree),
+             data =  ps16S_RNA_genera_metadata)
+
+summary(test)
+```
+
+#plot: Shannon vs ECM
+```{r}
+ASVs_RNA <- ggplot(ps16S_RNA_genera_metadata, aes(x = ectomycorrhizal,
+                                                            y = Shannon,
+                                                            #color = Tree_Health
+                                           )) +
+  geom_point() +
+  
+  geom_smooth(method = 'lm') +
+  
+  #ylim(-100, NA) +
+  
+  #xlim(0, NA) +
+  
+  theme_classic()
+
+ASVs_RNA
+```
+
+#nothing there.
+
+#remove and re-try:
+```{r}
+ps16S_RNA_genera_metadata_rem1 <- filter(ps16S_RNA_genera_metadata, ectomycorrhizal < 400)
+```
+
+#test:
+```{r}
+test <- lmer(Shannon ~ ectomycorrhizal + Tree_Health + (1|Tree),
+             data =  ps16S_RNA_genera_metadata_rem1)
+
+summary(test)
+```
+
+#almost, now.
+
+#compare with depth:
+
+#plot: Shannon vs depth by tree health
+```{r}
+ASVs_RNA <- ggplot(ps16S_RNA_genera_metadata, aes(x = core_bottom_depth_cm,
+                                                            y = Shannon,
+                                                            color = Tree_Health)) +
+  geom_point() +
+  
+  geom_smooth(method = 'lm') +
+  
+  #ylim(-100, NA) +
+  
+  #xlim(0, NA) +
+  
+  theme_classic()
+
+ASVs_RNA
+```
+
+#huh. Very different.
+
+#test:
+```{r}
+test <- lmer(Shannon ~ core_bottom_depth_cm * Tree_Health + (1|Tree),
+             data =  ps16S_RNA_genera_metadata)
+
+summary(test)
+```
+
+#and without the interaction:
+
+#test:
+```{r}
+test <- lmer(Shannon ~ core_bottom_depth_cm + Tree_Health + (1|Tree),
+             data =  ps16S_RNA_genera_metadata)
+
+summary(test)
+```
+
+#Depth significant.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+##ASVs
+
+#RNA
+
+#desigmate ASVs:
+```{r, eval=FALSE}
+#ps16S_ASVs <- ps16S
+```
+
+#Select RNA only:
+```{r, eval=FALSE}
+#ps16S_ASVs
+#ps16S_ASVs_RNA <- subset_samples(ps16S_ASVs, nucleic_acid == "RNA")
+#ps16S_ASVs_RNA
+```
+
+#Remove taxa no longer in dataset:
+```{r, eval=FALSE}
+#ps16S_ASVs_RNA
+#ps16S_ASVs_RNA <- prune_taxa(taxa_sums(ps16S_ASVs_RNA) > 0, ps16S_ASVs_RNA)
+#ps16S_ASVs_RNA
+```
+
+#calculate richness - note, using our trimmed sample for this. Having seen our rarefaction curves, I think it's fine.
+```{r, eval=FALSE}
+#ps16S_ASVs_RNA_alphadiv <- estimate_richness(ps16S_ASVs_RNA,
+#                                             split = TRUE,
+#                                             measures = c("Observed",
+#                                                          "Shannon"))
+```
+
+#join data:
+```{r, eval=FALSE}
+#data_1 <- rownames_to_column(ps16S_metadata, var = "SeqID")
+#data_2 <- rownames_to_column(ps16S_ASVs_RNA_alphadiv, var = "SeqID")
+
+#ps16S_ASVs_RNA_metadata <- left_join(data_2, data_1)
+```
+
+
+#Observed
+
+#plot: observed vs %ECM by tree health
+```{r, eval=FALSE}
+#ASVs_RNA <- ggplot(ps16S_ASVs_RNA_metadata, aes(x = ectomycorrhizal,
+#                                                            y = Observed,
+#                                                            color = Tree_Health)) +
+#  geom_point() +
+  
+#  geom_smooth(method = 'lm') +
+  
+  #ylim(-100, NA) +
+  
+  #xlim(0, NA) +
+  
+#  theme_classic()
+
+#ASVs_RNA
+```
+
+#probably linear if there's a relationship at all...
+
+#test:
+```{r, eval=FALSE}
+test <- lm(Observed ~ ectomycorrhizal * Tree_Health, 
+             data = ps16S_ASVs_RNA_metadata)
+
+summary(test)
+```
+
+#not really enough data here, I think. 
+
+#compare with depth:
+
+#plot: observed vs depth by tree health
+```{r, eval=FALSE}
+ASVs_RNA <- ggplot(ps16S_ASVs_RNA_metadata, aes(x = core_bottom_depth_cm,
+                                                            y = Observed,
+                                                            color = Tree_Health)) +
+  geom_point() +
+  
+  geom_smooth(method = 'lm') +
+  
+  #ylim(-100, NA) +
+  
+  #xlim(0, NA) +
+  
+  theme_classic()
+
+ASVs_RNA
+```
+
+#huh. Very different.
+
+#test:
+```{r, eval=FALSE}
+test <- lm(Observed ~ core_bottom_depth_cm * Tree_Health, 
+             data = ps16S_ASVs_RNA_metadata)
+
+summary(test)
+```
+
+#Shannon
+
+#plot: shannon vs %ECM by tree health
+```{r, eval=FALSE}
+ASVs_RNA <- ggplot(ps16S_ASVs_RNA_metadata, aes(x = ectomycorrhizal,
+                                                            y = Shannon,
+                                                            color = Tree_Health)) +
+  geom_point() +
+  
+  geom_smooth(method = 'lm') +
+  
+  #ylim(-100, NA) +
+  
+  #xlim(0, NA) +
+  
+  theme_classic()
+
+ASVs_RNA
+```
+
+#basically indentical
+
+#test:
+```{r, eval=FALSE}
+test <- lm(Shannon ~ ectomycorrhizal * Tree_Health, 
+             data = ps16S_ASVs_RNA_metadata)
+
+summary(test)
+```
+
+#Interesting that that seems stronger?
+
+#compare with depth:
+
+#plot: shannon vs depth by tree health
+```{r, eval=FALSE}
+ASVs_RNA <- ggplot(ps16S_ASVs_RNA_metadata, aes(x = core_bottom_depth_cm,
+                                                            y = Shannon,
+                                                            color = Tree_Health)) +
+  geom_point() +
+  
+  geom_smooth(method = 'lm') +
+  
+  #ylim(-100, NA) +
+  
+  #xlim(0, NA) +
+  
+  theme_classic()
+
+ASVs_RNA
+```
+
+#sane as before
+
+#test:
+```{r, eval=FALSE}
+test <- lm(Shannon ~ core_bottom_depth_cm * Tree_Health, 
+             data = ps16S_ASVs_RNA_metadata)
+
+summary(test)
+```
+
+#so maybe we're seeing an inversion of depth; in dead trees % ECM starts ~.2 and decreases rapidly. In live trees, the opposite. So - this could just be a depth effect, with the axis direction effectively reversed for dead trees. I think we'd have to look at the specific bacteria involved to make any stronger conclusions.
+
+#DNA
+
+#desigmate ASVs:
+```{r, eval=FALSE}
+ps16S_ASVs <- ps16S
+```
+
+#Select DNA only:
+```{r, eval=FALSE}
+ps16S_ASVs
+ps16S_ASVs_DNA <- subset_samples(ps16S_ASVs, nucleic_acid == "DNA")
+ps16S_ASVs_DNA
+```
+
+#Remove taxa no longer in dataset:
+```{r, eval=FALSE}
+ps16S_ASVs_DNA
+ps16S_ASVs_DNA <- prune_taxa(taxa_sums(ps16S_ASVs_DNA) > 0, ps16S_ASVs_DNA)
+ps16S_ASVs_DNA
+```
+
+#calculate richness - note, using our trimmed sample for this. Having seen our rarefaction curves, I think it's fine.
+```{r, eval=FALSE}
+ps16S_ASVs_DNA_alphadiv <- estimate_richness(ps16S_ASVs_DNA,
+                                             split = TRUE,
+                                             measures = c("Observed",
+                                                          "Shannon"))
+```
+
+#join data:
+```{r, eval=FALSE}
+data_1 <- rownames_to_column(ps16S_metadata, var = "SeqID")
+data_2 <- rownames_to_column(ps16S_ASVs_DNA_alphadiv, var = "SeqID")
+
+ps16S_ASVs_DNA_metadata <- left_join(data_2, data_1)
+```
+
+
+#Observed
+
+#plot: observed vs %ECM by tree health
+```{r, eval=FALSE}
+ASVs_DNA <- ggplot(ps16S_ASVs_DNA_metadata, aes(x = ectomycorrhizal,
+                                                            y = Observed,
+                                                            color = Tree_Health)) +
+  geom_point() +
+  
+  geom_smooth(method = 'lm') +
+  
+  #ylim(-100, NA) +
+  
+  #xlim(0, NA) +
+  
+  theme_classic()
+
+ASVs_DNA
+```
+
+#That is a strange contrast with RNA. Or is it? RNA was kind of driven by one sample.
+
+#test:
+```{r, eval=FALSE}
+test <- lm(Observed ~ ectomycorrhizal * Tree_Health, 
+             data = ps16S_ASVs_DNA_metadata)
+
+summary(test)
+```
+
+
+#compare with depth:
+
+#plot: observed vs depth by tree health
+```{r, eval=FALSE}
+ASVs_DNA <- ggplot(ps16S_ASVs_DNA_metadata, aes(x = core_bottom_depth_cm,
+                                                            y = Observed,
+                                                            color = Tree_Health)) +
+  geom_point() +
+  
+  geom_smooth(method = 'lm') +
+  
+  #ylim(-100, NA) +
+  
+  #xlim(0, NA) +
+  
+  theme_classic()
+
+ASVs_DNA
+```
+
+#Strangeness continues.
+
+#test:
+```{r, eval=FALSE}
+test <- lm(Observed ~ core_bottom_depth_cm * Tree_Health, 
+             data = ps16S_ASVs_DNA_metadata)
+
+summary(test)
+```
+
+#Shannon
+
+#plot: shannon vs %ECM by tree health
+```{r, eval=FALSE}
+ASVs_DNA <- ggplot(ps16S_ASVs_DNA_metadata, aes(x = ectomycorrhizal,
+                                                            y = Shannon,
+                                                            color = Tree_Health)) +
+  geom_point() +
+  
+  geom_smooth(method = 'lm') +
+  
+  #ylim(-100, NA) +
+  
+  #xlim(0, NA) +
+  
+  theme_classic()
+
+ASVs_DNA
+```
+
+#basically indentical to observed
+
+#test:
+```{r, eval=FALSE}
+test <- lm(Shannon ~ ectomycorrhizal * Tree_Health, 
+             data = ps16S_ASVs_DNA_metadata)
+
+summary(test)
+```
+
+#Interesting that that seems stronger?
+
+#compare with depth:
+
+#plot: shannon vs depth by tree health
+```{r, eval=FALSE}
+ASVs_DNA <- ggplot(ps16S_ASVs_DNA_metadata, aes(x = core_bottom_depth_cm,
+                                                            y = Shannon,
+                                                            color = Tree_Health)) +
+  geom_point() +
+  
+  geom_smooth(method = 'lm') +
+  
+  #ylim(-100, NA) +
+  
+  #xlim(0, NA) +
+  
+  theme_classic()
+
+ASVs_DNA
+```
+
+#same as before
+
+#test:
+```{r, eval=FALSE}
+test <- lm(Shannon ~ core_bottom_depth_cm * Tree_Health, 
+             data = ps16S_ASVs_DNA_metadata)
+
+summary(test)
+```
+
+#Ok, try that again but add depth as a control to all those. Is ECM ever significant with depth as a factor?
+
+#RNA
+
+#desigmate ASVs:
+```{r, eval=FALSE}
+ps16S_ASVs <- ps16S
+```
+
+#Select RNA only:
+```{r, eval=FALSE}
+ps16S_ASVs
+ps16S_ASVs_RNA <- subset_samples(ps16S_ASVs, nucleic_acid == "RNA")
+ps16S_ASVs_RNA
+```
+
+#Remove taxa no longer in dataset:
+```{r, eval=FALSE}
+ps16S_ASVs_RNA
+ps16S_ASVs_RNA <- prune_taxa(taxa_sums(ps16S_ASVs_RNA) > 0, ps16S_ASVs_RNA)
+ps16S_ASVs_RNA
+```
+
+#calculate richness - note, using our trimmed sample for this. Having seen our rarefaction curves, I think it's fine.
+```{r, eval=FALSE}
+ps16S_ASVs_RNA_alphadiv <- estimate_richness(ps16S_ASVs_RNA,
+                                             split = TRUE,
+                                             measures = c("Observed",
+                                                          "Shannon"))
+```
+
+#join data:
+```{r, eval=FALSE}
+data_1 <- rownames_to_column(ps16S_metadata, var = "SeqID")
+data_2 <- rownames_to_column(ps16S_ASVs_RNA_alphadiv, var = "SeqID")
+
+ps16S_ASVs_RNA_metadata <- left_join(data_2, data_1)
+```
+
+
+#Observed
+
+#plot: observed vs %ECM by tree health
+```{r, eval=FALSE}
+ASVs_RNA <- ggplot(ps16S_ASVs_RNA_metadata, aes(x = ectomycorrhizal,
+                                                            y = Observed,
+                                                            color = Tree_Health)) +
+  geom_point() +
+  
+  geom_smooth(method = 'lm') +
+  
+  #ylim(-100, NA) +
+  
+  #xlim(0, NA) +
+  
+  theme_classic()
+
+ASVs_RNA
+```
+
+#probably linear if there's a relationship at all...
+
+#test:
+```{r, eval=FALSE}
+test <- lm(Observed ~ ectomycorrhizal * Tree_Health + core_bottom_depth_cm, 
+             data = ps16S_ASVs_RNA_metadata)
+
+summary(test)
+```
+
+#again, lack of data is an issue. Really think that tree health matters here.
+
+#Shannon
+
+#plot: shannon vs %ECM by tree health
+```{r, eval=FALSE}
+ASVs_RNA <- ggplot(ps16S_ASVs_RNA_metadata, aes(x = ectomycorrhizal,
+                                                            y = Shannon,
+                                                            color = Tree_Health)) +
+  geom_point() +
+  
+  geom_smooth(method = 'lm') +
+  
+  #ylim(-100, NA) +
+  
+  #xlim(0, NA) +
+  
+  theme_classic()
+
+ASVs_RNA
+```
+
+#basically indentical
+
+#test:
+```{r, eval=FALSE}
+test <- lm(Shannon ~ ectomycorrhizal * Tree_Health + core_bottom_depth_cm, 
+             data = ps16S_ASVs_RNA_metadata)
+
+summary(test)
+```
+
+#hmm
+
+
+#DNA
+
+#desigmate ASVs:
+```{r, eval=FALSE}
+ps16S_ASVs <- ps16S
+```
+
+#Select DNA only:
+```{r, eval=FALSE}
+ps16S_ASVs
+ps16S_ASVs_DNA <- subset_samples(ps16S_ASVs, nucleic_acid == "DNA")
+ps16S_ASVs_DNA
+```
+
+#Remove taxa no longer in dataset:
+```{r, eval=FALSE}
+ps16S_ASVs_DNA
+ps16S_ASVs_DNA <- prune_taxa(taxa_sums(ps16S_ASVs_DNA) > 0, ps16S_ASVs_DNA)
+ps16S_ASVs_DNA
+```
+
+#calculate richness - note, using our trimmed sample for this. Having seen our rarefaction curves, I think it's fine.
+```{r, eval=FALSE}
+ps16S_ASVs_DNA_alphadiv <- estimate_richness(ps16S_ASVs_DNA,
+                                             split = TRUE,
+                                             measures = c("Observed",
+                                                          "Shannon"))
+```
+
+#join data:
+```{r, eval=FALSE}
+data_1 <- rownames_to_column(ps16S_metadata, var = "SeqID")
+data_2 <- rownames_to_column(ps16S_ASVs_DNA_alphadiv, var = "SeqID")
+
+ps16S_ASVs_DNA_metadata <- left_join(data_2, data_1)
+```
+
+
+#Observed
+
+#plot: observed vs %ECM by tree health
+```{r, eval=FALSE}
+ASVs_DNA <- ggplot(ps16S_ASVs_DNA_metadata, aes(x = ectomycorrhizal,
+                                                            y = Observed,
+                                                            color = Tree_Health)) +
+  geom_point() +
+  
+  geom_smooth(method = 'lm') +
+  
+  #ylim(-100, NA) +
+  
+  #xlim(0, NA) +
+  
+  theme_classic()
+
+ASVs_DNA
+```
+
+#That is a strange contrast with RNA.
+
+#test:
+```{r, eval=FALSE}
+test <- lm(Observed ~ ectomycorrhizal * Tree_Health + core_bottom_depth_cm, 
+             data = ps16S_ASVs_DNA_metadata)
+
+summary(test)
+```
+
+#kind of surprised? Am I doing this wrong? No, depth wasn't as important in DNA, esp in dead trees.
+
+#Shannon
+
+#plot: shannon vs %ECM by tree health
+```{r, eval=FALSE}
+ASVs_DNA <- ggplot(ps16S_ASVs_DNA_metadata, aes(x = ectomycorrhizal,
+                                                            y = Shannon,
+                                                            color = Tree_Health)) +
+  geom_point() +
+  
+  geom_smooth(method = 'lm') +
+  
+  #ylim(-100, NA) +
+  
+  #xlim(0, NA) +
+  
+  theme_classic()
+
+ASVs_DNA
+```
+
+#basically indentical to observed
+
+#test:
+```{r, eval=FALSE}
+test <- lm(Shannon ~ ectomycorrhizal * Tree_Health + core_bottom_depth_cm, 
+             data = ps16S_ASVs_DNA_metadata)
+
+summary(test)
+```
+
+##genera
+
+#RNA
+
+#agglomerate to genus:
+```{r, eval=FALSE}
+ps16S
+ps16S_genera <- tax_glom(ps16S, taxrank = "Genus", NArm = FALSE)
+ps16S_genera
+```
+
+#Select RNA only:
+```{r, eval=FALSE}
+ps16S_genera
+ps16S_genera_RNA <- subset_samples(ps16S_genera, nucleic_acid == "RNA")
+ps16S_genera_RNA
+```
+
+#Remove taxa no longer in dataset:
+```{r, eval=FALSE}
+ps16S_genera_RNA
+ps16S_genera_RNA <- prune_taxa(taxa_sums(ps16S_genera_RNA) > 0, ps16S_genera_RNA)
+ps16S_genera_RNA
+```
+
+#calculate richness - note, using our trimmed sample for this. Having seen our rarefaction curves, I think it's fine.
+```{r, eval=FALSE}
+ps16S_genera_RNA_alphadiv <- estimate_richness(ps16S_genera_RNA,
+                                             split = TRUE,
+                                             measures = c("Observed",
+                                                          "Shannon"))
+```
+
+#join data:
+```{r, eval=FALSE}
+data_1 <- rownames_to_column(ps16S_metadata, var = "SeqID")
+data_2 <- rownames_to_column(ps16S_genera_RNA_alphadiv, var = "SeqID")
+
+ps16S_genera_RNA_metadata <- left_join(data_2, data_1)
+```
+
+
+#Observed
+
+#plot: observed vs %ECM by tree health
+```{r, eval=FALSE}
+genera_RNA <- ggplot(ps16S_genera_RNA_metadata, aes(x = ectomycorrhizal,
+                                                            y = Observed,
+                                                            color = Tree_Health)) +
+  geom_point() +
+  
+  geom_smooth(method = 'lm') +
+  
+  #ylim(-100, NA) +
+  
+  #xlim(0, NA) +
+  
+  theme_classic()
+
+genera_RNA
+```
+
+#agglomerate to genus and suddenly the weird relationship goes away...
+
+#test:
+```{r, eval=FALSE}
+test <- lm(Observed ~ ectomycorrhizal * Tree_Health, 
+             data = ps16S_genera_RNA_metadata)
+
+summary(test)
+```
+
+
+#compare with depth:
+
+#plot: observed vs depth by tree health
+```{r, eval=FALSE}
+genera_RNA <- ggplot(ps16S_genera_RNA_metadata, aes(x = core_bottom_depth_cm,
+                                                            y = Observed,
+                                                            color = Tree_Health)) +
+  geom_point() +
+  
+  geom_smooth(method = 'lm') +
+  
+  #ylim(-100, NA) +
+  
+  #xlim(0, NA) +
+  
+  theme_classic()
+
+genera_RNA
+```
+
+#well now the relationship is the same between %ECM and depth?
+
+#test:
+```{r, eval=FALSE}
+test <- lm(Observed ~ core_bottom_depth_cm * Tree_Health, 
+             data = ps16S_genera_RNA_metadata)
+
+summary(test)
+```
+
+#Shannon
+
+#plot: shannon vs %ECM by tree health
+```{r, eval=FALSE}
+genera_RNA <- ggplot(ps16S_genera_RNA_metadata, aes(x = ectomycorrhizal,
+                                                            y = Shannon,
+                                                            color = Tree_Health)) +
+  geom_point() +
+  
+  geom_smooth(method = 'lm') +
+  
+  #ylim(-100, NA) +
+  
+  #xlim(0, NA) +
+  
+  theme_classic()
+
+genera_RNA
+```
+
+#basically indentical
+
+#test:
+```{r, eval=FALSE}
+test <- lm(Shannon ~ ectomycorrhizal * Tree_Health, 
+             data = ps16S_genera_RNA_metadata)
+
+summary(test)
+```
+
+
+#compare with depth:
+
+#plot: shannon vs depth by tree health
+```{r, eval=FALSE}
+genera_RNA <- ggplot(ps16S_genera_RNA_metadata, aes(x = core_bottom_depth_cm,
+                                                            y = Shannon,
+                                                            color = Tree_Health)) +
+  geom_point() +
+  
+  geom_smooth(method = 'lm') +
+  
+  #ylim(-100, NA) +
+  
+  #xlim(0, NA) +
+  
+  theme_classic()
+
+genera_RNA
+```
+
+#same as before
+
+#test:
+```{r, eval=FALSE}
+test <- lm(Shannon ~ core_bottom_depth_cm * Tree_Health, 
+             data = ps16S_genera_RNA_metadata)
+
+summary(test)
+```
+
+
+#DNA
+
+#Select DNA only:
+```{r, eval=FALSE}
+ps16S_genera
+ps16S_genera_DNA <- subset_samples(ps16S_genera, nucleic_acid == "DNA")
+ps16S_genera_DNA
+```
+
+#Remove taxa no longer in dataset:
+```{r, eval=FALSE}
+ps16S_genera_DNA
+ps16S_genera_DNA <- prune_taxa(taxa_sums(ps16S_genera_DNA) > 0, ps16S_genera_DNA)
+ps16S_genera_DNA
+```
+
+#calculate richness - note, using our trimmed sample for this. Having seen our rarefaction curves, I think it's fine.
+```{r, eval=FALSE}
+ps16S_genera_DNA_alphadiv <- estimate_richness(ps16S_genera_DNA,
+                                             split = TRUE,
+                                             measures = c("Observed",
+                                                          "Shannon"))
+```
+
+#join data:
+```{r, eval=FALSE}
+data_1 <- rownames_to_column(ps16S_metadata, var = "SeqID")
+data_2 <- rownames_to_column(ps16S_genera_DNA_alphadiv, var = "SeqID")
+
+ps16S_genera_DNA_metadata <- left_join(data_2, data_1)
+```
+
+
+#Observed
+
+#plot: observed vs %ECM by tree health
+```{r, eval=FALSE}
+genera_DNA <- ggplot(ps16S_genera_DNA_metadata, aes(x = ectomycorrhizal,
+                                                            y = Observed,
+                                                            color = Tree_Health)) +
+  geom_point() +
+  
+  geom_smooth(method = 'lm') +
+  
+  #ylim(-100, NA) +
+  
+  #xlim(0, NA) +
+  
+  theme_classic()
+
+genera_DNA
+```
+
+#ok so this looks like RNA. It's only the RNA at the ASV level that shows a different relationship.
+
+#test:
+```{r, eval=FALSE}
+test <- lm(Observed ~ ectomycorrhizal * Tree_Health, 
+             data = ps16S_genera_DNA_metadata)
+
+summary(test)
+```
+
+
+#compare with depth:
+
+#plot: observed vs depth by tree health
+```{r, eval=FALSE}
+genera_DNA <- ggplot(ps16S_genera_DNA_metadata, aes(x = core_bottom_depth_cm,
+                                                            y = Observed,
+                                                            color = Tree_Health)) +
+  geom_point() +
+  
+  geom_smooth(method = 'lm') +
+  
+  #ylim(-100, NA) +
+  
+  #xlim(0, NA) +
+  
+  theme_classic()
+
+genera_DNA
+```
+
+
+
+#test:
+```{r, eval=FALSE}
+test <- lm(Observed ~ core_bottom_depth_cm * Tree_Health, 
+             data = ps16S_genera_DNA_metadata)
+
+summary(test)
+```
+
+#looks like the p value and R2 are just a little better for depth. Will be interested to see the model.
+
+#Shannon
+
+#plot: shannon vs %ECM by tree health
+```{r, eval=FALSE}
+genera_DNA <- ggplot(ps16S_genera_DNA_metadata, aes(x = ectomycorrhizal,
+                                                            y = Shannon,
+                                                            color = Tree_Health)) +
+  geom_point() +
+  
+  geom_smooth(method = 'lm') +
+  
+  #ylim(-100, NA) +
+  
+  #xlim(0, NA) +
+  
+  theme_classic()
+
+genera_DNA
+```
+
+#basically indentical to observed
+
+#test:
+```{r, eval=FALSE}
+test <- lm(Shannon ~ ectomycorrhizal * Tree_Health, 
+             data = ps16S_genera_DNA_metadata)
+
+summary(test)
+```
+
+
+
+#compare with depth:
+
+#plot: shannon vs depth by tree health
+```{r, eval=FALSE}
+genera_DNA <- ggplot(ps16S_genera_DNA_metadata, aes(x = core_bottom_depth_cm,
+                                                            y = Shannon,
+                                                            color = Tree_Health)) +
+  geom_point() +
+  
+  geom_smooth(method = 'lm') +
+  
+  #ylim(-100, NA) +
+  
+  #xlim(0, NA) +
+  
+  theme_classic()
+
+genera_DNA
+```
+
+#same as before
+
+#test:
+```{r, eval=FALSE}
+test <- lm(Shannon ~ core_bottom_depth_cm * Tree_Health, 
+             data = ps16S_genera_DNA_metadata)
+
+summary(test)
+```
+
+#Still depth is stronger.
+
+#re-run and add depth as a factor...
+
+#RNA
+
+#Select RNA only:
+```{r, eval=FALSE}
+ps16S_genera
+ps16S_genera_RNA <- subset_samples(ps16S_genera, nucleic_acid == "RNA")
+ps16S_genera_RNA
+```
+
+#Remove taxa no longer in dataset:
+```{r, eval=FALSE}
+ps16S_genera_RNA
+ps16S_genera_RNA <- prune_taxa(taxa_sums(ps16S_genera_RNA) > 0, ps16S_genera_RNA)
+ps16S_genera_RNA
+```
+
+#calculate richness - note, using our trimmed sample for this. Having seen our rarefaction curves, I think it's fine.
+```{r, eval=FALSE}
+ps16S_genera_RNA_alphadiv <- estimate_richness(ps16S_genera_RNA,
+                                             split = TRUE,
+                                             measures = c("Observed",
+                                                          "Shannon"))
+```
+
+#join data:
+```{r, eval=FALSE}
+data_1 <- rownames_to_column(ps16S_metadata, var = "SeqID")
+data_2 <- rownames_to_column(ps16S_genera_RNA_alphadiv, var = "SeqID")
+
+ps16S_genera_RNA_metadata <- left_join(data_2, data_1)
+```
+
+
+#Observed
+
+#plot: observed vs %ECM by tree health
+```{r, eval=FALSE}
+genera_RNA <- ggplot(ps16S_genera_RNA_metadata, aes(x = ectomycorrhizal,
+                                                            y = Observed,
+                                                            color = Tree_Health)) +
+  geom_point() +
+  
+  geom_smooth(method = 'lm') +
+  
+  #ylim(-100, NA) +
+  
+  #xlim(0, NA) +
+  
+  theme_classic()
+
+genera_RNA
+```
+
+
+#test:
+```{r, eval=FALSE}
+test <- lm(Observed ~ ectomycorrhizal * Tree_Health + core_bottom_depth_cm, 
+             data = ps16S_genera_RNA_metadata)
+
+summary(test)
+```
+
+#So, ECM not significant? But now depth isn't either? What?
+
+#Shannon
+
+#plot: shannon vs %ECM by tree health
+```{r, eval=FALSE}
+genera_RNA <- ggplot(ps16S_genera_RNA_metadata, aes(x = ectomycorrhizal,
+                                                            y = Shannon,
+                                                            color = Tree_Health)) +
+  geom_point() +
+  
+  geom_smooth(method = 'lm') +
+  
+  #ylim(-100, NA) +
+  
+  #xlim(0, NA) +
+  
+  theme_classic()
+
+genera_RNA
+```
+
+#basically indentical
+
+#test:
+```{r, eval=FALSE}
+test <- lm(Shannon ~ ectomycorrhizal * Tree_Health + core_bottom_depth_cm, 
+             data = ps16S_genera_RNA_metadata)
+
+summary(test)
+```
+
+#these look basically identical to me, why the discrepancy? But anyway this time ECM goes away.
+
+
+#DNA
+
+#Select DNA only:
+```{r, eval=FALSE}
+ps16S_genera
+ps16S_genera_DNA <- subset_samples(ps16S_genera, nucleic_acid == "DNA")
+ps16S_genera_DNA
+```
+
+#Remove taxa no longer in dataset:
+```{r, eval=FALSE}
+ps16S_genera_DNA
+ps16S_genera_DNA <- prune_taxa(taxa_sums(ps16S_genera_DNA) > 0, ps16S_genera_DNA)
+ps16S_genera_DNA
+```
+
+#calculate richness - note, using our trimmed sample for this. Having seen our rarefaction curves, I think it's fine.
+```{r, eval=FALSE}
+ps16S_genera_DNA_alphadiv <- estimate_richness(ps16S_genera_DNA,
+                                             split = TRUE,
+                                             measures = c("Observed",
+                                                          "Shannon"))
+```
+
+#join data:
+```{r, eval=FALSE}
+data_1 <- rownames_to_column(ps16S_metadata, var = "SeqID")
+data_2 <- rownames_to_column(ps16S_genera_DNA_alphadiv, var = "SeqID")
+
+ps16S_genera_DNA_metadata <- left_join(data_2, data_1)
+```
+
+
+#Observed
+
+#plot: observed vs %ECM by tree health
+```{r, eval=FALSE}
+genera_DNA <- ggplot(ps16S_genera_DNA_metadata, aes(x = ectomycorrhizal,
+                                                            y = Observed,
+                                                            color = Tree_Health)) +
+  geom_point() +
+  
+  geom_smooth(method = 'lm') +
+  
+  #ylim(-100, NA) +
+  
+  #xlim(0, NA) +
+  
+  theme_classic()
+
+genera_DNA
+```
+
+#Now - is that just depth?
+
+#test:
+```{r, eval=FALSE}
+test <- lm(Observed ~ ectomycorrhizal * Tree_Health + core_bottom_depth_cm, 
+             data = ps16S_genera_DNA_metadata)
+
+summary(test)
+```
+
+#ohhh almost.
+
+#Shannon
+
+#plot: shannon vs %ECM by tree health
+```{r, eval=FALSE}
+genera_DNA <- ggplot(ps16S_genera_DNA_metadata, aes(x = ectomycorrhizal,
+                                                            y = Shannon,
+                                                            color = Tree_Health)) +
+  geom_point() +
+  
+  geom_smooth(method = 'lm') +
+  
+  #ylim(-100, NA) +
+  
+  #xlim(0, NA) +
+  
+  theme_classic()
+
+genera_DNA
+```
+
+#basically indentical to observed
+
+#test:
+```{r, eval=FALSE}
+test <- lm(Shannon ~ ectomycorrhizal * Tree_Health + core_bottom_depth_cm, 
+             data = ps16S_genera_DNA_metadata)
+
+summary(test)
+```
+
+#gol blast it. to me this really suggests if we had more data we WOULD see an independent effect of ECM everywhere. Same pattern here, just slightly more pronounced than elsewhere.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

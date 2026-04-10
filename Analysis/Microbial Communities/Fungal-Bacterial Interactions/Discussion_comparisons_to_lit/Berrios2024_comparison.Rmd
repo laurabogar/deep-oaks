@@ -1,0 +1,45 @@
+---
+title: "Berrios2024_comparison"
+output: html_document
+---
+
+```{r}
+library(tidyverse)
+```
+
+```{r}
+b2024 = read.csv("Berrios2024_deseq_results_from_fig.csv")
+ours = read.csv("~/Bogar Lab/Deep Oaks (DO)/DORP_27June2025/Deep Oaks R Project/Analysis/Microbial Communities/Fungal-Bacterial Interactions/DeSeq2 Indicator Species Analysis/Results/DESeq2_16S_ASVs_RNA_ECM_3trees_mip.csv")
+ours.pos = read.csv("~/Bogar Lab/Deep Oaks (DO)/DORP_27June2025/Deep Oaks R Project/Analysis/Microbial Communities/Fungal-Bacterial Interactions/DeSeq2 Indicator Species Analysis/Results/DESeq2_16S_ASVs_RNA_ECM_positive_3trees_mip.csv")
+```
+
+```{r}
+colnames(b2024)
+colnames(ours)
+
+shared = ours %>% filter(ours$Genus %in% b2024$genus)
+shared
+```
+```{r}
+ourResults = shared %>% select(c(Genus, Species, log2FoldChange)) %>% mutate(effect = case_when(log2FoldChange > 0 ~ "inc",
+                                                                                               log2FoldChange < 0 ~ "dec"))
+
+ourResults
+```
+```{r}
+ourResults_genus = ourResults %>% group_by(Genus)
+ourResults_genus
+```
+
+```{r}
+compare_results = ourResults_genus %>% left_join(b2024, join_by(Genus == genus))
+compare_results
+```
+
+
+```{r}
+
+```
+
+
+
