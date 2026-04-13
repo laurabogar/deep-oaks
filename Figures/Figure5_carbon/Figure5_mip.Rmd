@@ -17,9 +17,9 @@ library("cowplot")
 
 #load required data:
 ```{r}
-C_metadata <- read.csv("../../Analysis/Carbon/Density_Corrected_C/Results/per_sample_metadata_Ccorrected_mip.csv")
+C_metadata <- read.csv("Analysis/Carbon/Density_Corrected_C/Results/per_sample_metadata_Ccorrected_mip.csv")
 
-ecm_metadata = read.csv("../../Analysis/Microbial Communities/Fungal-Bacterial Interactions/DeSeq2 Indicator Species Analysis/Results/metadata_with_ECMasssociated3trees_mip.csv")
+ecm_metadata = read.csv("Analysis/Microbial Communities/Fungal-Bacterial Interactions/DeSeq2 Indicator Species Analysis/Results/metadata_with_ECMasssociated3trees_mip.csv")
 ```
 
 
@@ -29,7 +29,7 @@ ecm_metadata = read.csv("../../Analysis/Microbial Communities/Fungal-Bacterial I
 CN_lab = "C:N"
 C_lab = "Mg C / hectare"
 depth_lab = "Depth (cm)"
-ecm_lab = "ECM-assoicated biomass (ng lipid/g soil)"
+ecm_lab = "EMF-associated biomass (ng lipid/g soil)"
 fontsize = 7
 ```
 
@@ -182,11 +182,11 @@ h_mm = w_mm*hw_ratio
 w_i = w_mm/25.4
 h_i = h_mm/25.4
 
-jpeg("Results/Figure5.jpg", width = w_i * ppi, height = h_i * ppi, res = ppi)
+jpeg("Figures/Figure5_carbon/Results/Figure5.jpg", width = w_i * ppi, height = h_i * ppi, res = ppi)
 fig5
 dev.off()
 
-jpeg("../../Reports/Figure5.jpg", width = w_i * ppi, height = h_i * ppi, res = ppi)
+jpeg("Reports/Figure5.jpg", width = w_i * ppi, height = h_i * ppi, res = ppi)
 fig5
 dev.off()
 ```
@@ -206,11 +206,11 @@ h_mm = w_mm*hw_ratio
 w_i = w_mm/25.4
 h_i = h_mm/25.4
 
-png("Results/Figure5.png", width = w_i * ppi, height = h_i * ppi, res = ppi)
+png("Figures/Figure5_carbon/Results/Figure5.png", width = w_i * ppi, height = h_i * ppi, res = ppi)
 fig5
 dev.off()
 
-png("../../Reports/Figure5.png", width = w_i * ppi, height = h_i * ppi, res = ppi)
+png("Reports/Figure5.png", width = w_i * ppi, height = h_i * ppi, res = ppi)
 fig5
 dev.off()
 

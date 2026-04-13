@@ -76,7 +76,28 @@ top300_rna_names_ITS <- names(sort(taxa_sums(psITS_rna_pref), decreasing = TRUE)
 
 psITS_rna_filt <- prune_taxa(top300_rna_names_ITS, psITS_rna_pref)
 
-ntaxa(psITS_rna_filt)
+### "handshake" for cross-kingdom analysis
+
+# Replace barcode names with DO_ID for 16S
+sample_names(ps16_rna_filt) <- sample_data(ps16_rna_filt)$`DO_ID`
+
+# Replace barcode names with `DO_ID` for ITS
+sample_names(psITS_rna_filt) <- sample_data(psITS_rna_filt)$`DO_ID`
+
+# NOW try the handshake again
+common_samples <- intersect(sample_names(ps16_rna_filt), 
+                            sample_names(psITS_rna_filt))
+
+message("Success! Found ", length(common_samples), " overlapping samples.")
+
+# 2. Subset both objects to ONLY those common samples
+# This ensures they are perfectly paired (e.g., both have 26 samples)
+ps16_joint <- prune_samples(common_samples, ps16_rna_filt)
+psITS_joint <- prune_samples(common_samples, psITS_rna_filt)
+
+# 3. Optional but safe: Sort them to be 100% sure the order matches
+ps16_joint <- ps16_joint %>% phyloseq::prune_samples(sample_names(ps16_joint)[order(sample_names(ps16_joint))], .)
+psITS_joint <- psITS_joint %>% phyloseq::prune_samples(sample_names(psITS_joint)[order(sample_names(psITS_joint))], .)
 # MAKING A TEST SET
 
 # Define the names of the top 50 taxa by total abundance
@@ -95,15 +116,6 @@ We use the `netConstruct` function. We'll use the **SparCC** method, which is ro
 
 ```{r construct}
 # We create a combined network object to compare the two "groups" (DNA vs RNA)
-
-# net_comp_TEST <- netConstruct(ps_test,
-#                          measure = "sparcc",
-#                          filtTax = "none", # We already filtered manually
-#                          normMethod = "none", # SparCC handles compositionality
-#                          sparsMethod = "threshold",
-#                          thresh = 0.3, # Only show correlations > 0.3
-#                          cores = 7,
-#                          verbose = 3) 
 
 # 1. Setup Parallel Cores
 # Using 7 out of 8 to leave 1 for the OS
@@ -130,37 +142,110 @@ net_its <- netConstruct(psITS_rna_filt,
                         cores = cores_to_use, 
                         filtTax = "none", # We already filtered manually
                         normMethod = "none", # SparCC handles compositionality
-                        sparsMethod = "threshold",
-                        verbose = 3,
-                        thresh = 0.2) # Only show correlations > 0.2
+                        sparsMethod = "none",
+                        # thresh = 0.2, # Only show correlations > 0.2
+                        verbose = 3)
+
 analyzed_its <- netAnalyze(net_its)
 
-# 4. Run the Cross-Domain Network
-message("Launching Cross-Domain (16S + ITS) RNA Network...")
+### Cross-kingdom network analysis
+# 1. Samples are ROWS and Taxa are COLUMNS
+# (Check: dim should be ~27 x 300)
+bac <- as(otu_table(ps16_joint), "matrix")
+fun <- as(otu_table(psITS_joint), "matrix")
 
-net_cross <- netConstruct(data = ps16_rna_filt, 
-                          data2 = psITS_rna_filt, # Passing the second kingdom here
+# 2. Add prefixes to COLUMNS
+colnames(bac) <- paste0("Bac_", colnames(bac))
+colnames(fun) <- paste0("Fun_", colnames(fun))
+
+# 3. Combine them side-by-side
+# (Check: dim should be 27 x 600)
+combined_mat <- cbind(bac, fun)
+
+# 4. Final Verification
+message("Final Matrix has ", nrow(combined_mat), " samples and ", ncol(combined_mat), " total taxa.")
+
+
+
+# 1. Clear out the tax_table for the construction (SparCC only needs the OTU matrix)
+# 1. Extract and TRANSPOSE (t) so samples are rows
+data1_mat <- t(as(otu_table(ps16_joint), "matrix"))
+data2_mat <- t(as(otu_table(psITS_joint), "matrix"))
+
+# 2. Add prefixes to column names (taxa)
+colnames(data1_mat) <- paste0("Bac_", colnames(data1_mat))
+colnames(data2_mat) <- paste0("Fun_", colnames(data2_mat))
+
+# 3. Run as a SINGLE dataset
+# We don't use data2 here; we put everything in 'data'
+net_cross <- netConstruct(data = combined_mat, 
                           measure = "sparcc",
-                          normMethod = "none",
-                          sparsMethod = "threshold",
-                          thresh = 0.2, 
                           cores = 7,
+                          sparsMethod = "none",
                           verbose = 3)
 
-# 5. Analyze it
+# 4. Analyze as usual
 analyzed_cross <- netAnalyze(net_cross, hubPar = "eigenvector")
+
 
 # 6. COLLECT EVERYTHING INTO ONE LIST
 # This is the "Master List" the helper function will use
 final_networks_list <- list(
-  "16S_DNA"      = analyzed_16s,
-  "ITS_DNA"      = analyzed_its,
-  "Cross_Domain" = analyzed_cross
+  "16S_RNA"      = analyzed_16s,
+  "ITS_RNA"      = analyzed_its,
+  "Cross_Domain_RNA" = analyzed_cross
 )
 
 # 7. EXPORT ALL AT ONCE
 # This creates the folder and saves all 3 files using the names above
-save_network_results(final_networks_list, path = "Finished_Networks_Feb13")
+save_network_results(final_networks_list, path = "Finished_RNA_Networks_Feb13")
+
+# 1. Clear the plotting device just in case
+dev.off() 
+
+# 2. Run with absolute minimal arguments
+analyzed_cross <- readRDS("Finished_RNA_Networks_Feb13/Cross_Domain_RNA.rds")
+
+# 1. Create a manual color vector (300 Bac, 300 Fun)
+# This bypasses the name-matching error
+my_colors <- c(rep("skyblue", 300), rep("orange", 300))
+names(my_colors) <- colnames(analyzed_cross$fit$assoMat1)
+
+plot(analyzed_cross, 
+     edgeFilter = "highestWeight",    # Tell it to give you the TOP connections
+     edgeFilterPar = 200,      # Show the 200 strongest lines in the whole dataset
+     rmSingles = "all", 
+     colorVec = my_colors, 
+     # --- LABEL SETTINGS ---
+     labels = TRUE,
+     shortenLabels = "simple", 
+     labelLength = 10,       # Shows first 10 characters of the ASV name
+     cexLabels = 0.6,        # Makes the text small so it doesn't overlap as much
+     # ----------------------
+     nodeSize = "degree",
+     title1 = "Oak Cross-Domain: Top 200 Strongest Connections")
+
+# Get the taxa names from the association matrix inside 'input'
+net_taxa_names <- colnames(analyzed_cross$input$assoMat1)
+
+# Check the last few
+tail(net_taxa_names)
+
+# 1. Create the color vector based on the prefix in the input names
+dynamic_colors <- ifelse(grepl("Bac_", net_taxa_names), "skyblue", "orange")
+
+# 2. Assign the names to the vector so NetCoMi can map them to the nodes
+names(dynamic_colors) <- net_taxa_names
+
+# 3. Plot with the corrected colors
+plot(analyzed_cross, 
+     edgeFilter = "highestWeight", 
+     edgeFilterPar = 500,        # Increased to 500 to try and "find" the fungi
+     rmSingles = "all", 
+     colorVec = dynamic_colors, 
+     nodeSize = "degree",
+     labels = FALSE,
+     title1 = "Oak Rhizosphere: Blue=16S, Orange=ITS")
 
 ```
 
